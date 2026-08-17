@@ -1,0 +1,401 @@
+// Prisma sxemasi — Xususiy Maktab CRM
+// TZ'dagi ma'lumotlar modelining to'liq kod ko'rinishi.
+// Hujjat: https://www.prisma.io/docs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Enumlar (turlar)
+// ------------------------------------------------------------------
+
+enum Role {
+  ADMIN // Administrator / direksiya
+  TEACHER // O'qituvchi
+  ACCOUNTANT // Buxgalter
+  PARENT // Ota-ona / O'quvchi
+}
+
+enum Locale {
+  uz
+  ru
+  en
+}
+
+enum StudentStatus {
+  ACTIVE // Faol
+  GRADUATED // Bitirgan
+  LEFT // Chiqib ketgan
+}
+
+enum AttendanceStatus {
+  PRESENT // Keldi
+  ABSENT // Kelmadi
+  LATE // Kechikdi
+  EXCUSED // Sababli
+}
+
+enum GradeType {
+  DAILY // Kundalik
+  CONTROL // Nazorat
+  EXAM // Imtihon
+}
+
+enum InvoiceStatus {
+  PENDING // Kutilmoqda
+  PARTIAL // Qisman to'langan
+  PAID // To'langan
+  OVERDUE // Muddati o'tgan
+}
+
+enum PaymentMethod {
+  CASH // Naqd
+  CARD // Karta
+  TRANSFER // O'tkazma
+}
+
+enum MessageChannel {
+  SMS
+}
+
+enum MessageStatus {
+  QUEUED // Navbatda
+  SENT // Yuborildi
+  FAILED // Xato
+}
+
+enum TestSource {
+  MANUAL // Qo'lda kiritilgan
+  FILE // Fayldan import (txt/docx)
+  AI // AI generatsiya qilgan
+}
+
+// ------------------------------------------------------------------
+// O'quv yili va choraklar
+// ------------------------------------------------------------------
+
+model AcademicYear {
+  id        String    @id @default(cuid())
+  name      String // masalan: "2025-2026"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean   @default(false)
+  quarters  Quarter[]
+  classes   Class[]
+  createdAt DateTime  @default(now())
+}
+
+model Quarter {
+  id             String       @id @default(cuid())
+  name           Int // 1, 2, 3, 4
+  startDate      DateTime
+  endDate        DateTime
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYearId String
+  grades         Grade[]
+
+  @@unique([academicYearId, name])
+}
+
+// ------------------------------------------------------------------
+// Foydalanuvchilar va rollar
+// ------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String
+  fullName     String
+  role         Role
+  locale       Locale    @default(uz)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Rolga bog'liq profil (birga bittasi)
+  teacher   Teacher?
+  guardian  Guardian?
+
+  // Audit
+  auditLogs        AuditLog[]
+  issuedPenalties  Penalty[]  @relation("PenaltyIssuedBy")
+  createdCriteria  PenaltyCriterion[] @relation("CriterionCreatedBy")
+  receivedPayments Payment[]  @relation("PaymentReceivedBy")
+  createdTests     Test[]     @relation("TestCreatedBy")
+}
+
+model Teacher {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  subjects  Subject[] @relation("TeacherSubjects")
+  lessons   Lesson[]
+  homeroomClasses Class[] @relation("HomeroomTeacher")
+  createdAt DateTime @default(now())
+}
+
+model Guardian {
+  id        String    @id @default(cuid())
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?   @unique
+  fullName  String
+  phone     String
+  relation  String? // qarindoshlik: ota, ona, vasiy
+  students  Student[]
+  createdAt DateTime  @default(now())
+}
+
+// ------------------------------------------------------------------
+// O'quvchilar, sinflar, fanlar
+// ------------------------------------------------------------------
+
+model Student {
+  id          String        @id @default(cuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  gender      String?
+  photoUrl    String?
+  address     String?
+  enrollDate  DateTime      @default(now())
+  status      StudentStatus @default(ACTIVE)
+
+  class     Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  classId   String?
+  guardian  Guardian? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+  guardianId String?
+
+  attendances Attendance[]
+  grades      Grade[]
+  penalties   Penalty[]
+  contract    Contract?
+  messages    Message[]
+  testResults TestResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Class {
+  id             String        @id @default(cuid())
+  name           String // masalan: "9-A"
+  grade          Int // sinf darajasi: 1..11
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  academicYearId String?
+  homeroomTeacher Teacher?     @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  homeroomTeacherId String?
+
+  students Student[]
+  lessons  Lesson[]
+
+  createdAt DateTime @default(now())
+}
+
+model Subject {
+  id      String    @id @default(cuid())
+  nameUz  String
+  nameRu  String?
+  nameEn  String?
+  teachers Teacher[] @relation("TeacherSubjects")
+  lessons Lesson[]
+  grades  Grade[]
+  tests   Test[]
+}
+
+model Lesson {
+  id        String   @id @default(cuid())
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  dayOfWeek Int // 1 (dushanba) .. 7 (yakshanba)
+  startTime String // "08:30"
+  endTime   String // "09:15"
+  room      String?
+
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------
+// Davomat va baholar
+// ------------------------------------------------------------------
+
+model Attendance {
+  id        String           @id @default(cuid())
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  date      DateTime
+  status    AttendanceStatus
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, lessonId, date])
+}
+
+model Grade {
+  id        String    @id @default(cuid())
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+  quarter   Quarter   @relation(fields: [quarterId], references: [id], onDelete: Cascade)
+  quarterId String
+  value     Int // baho qiymati (5-balli yoki 100-balli konfiguratsiyaga qarab)
+  type      GradeType @default(DAILY)
+  date      DateTime  @default(now())
+  teacherId String?
+
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------
+// Jarima ball tizimi (mezonlar asosida)
+// ------------------------------------------------------------------
+
+model PenaltyCriterion {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  points      Int // ushbu mezon uchun jarima ball miqdori
+  category    String? // kechikish, intizom, forma qoidasi, ...
+  isActive    Boolean  @default(true)
+  createdBy   User?    @relation("CriterionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  penalties   Penalty[]
+  createdAt   DateTime @default(now())
+}
+
+model Penalty {
+  id          String            @id @default(cuid())
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  criterion   PenaltyCriterion? @relation(fields: [criterionId], references: [id], onDelete: SetNull)
+  criterionId String?
+  points      Int // mezon nusxasi (mezon o'zgarsa ham tarix saqlanadi)
+  note        String?
+  issuedBy    User?             @relation("PenaltyIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedById  String?
+  date        DateTime          @default(now())
+
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------------
+// To'lovlar / kontraktlar (buxgalteriya)
+// ------------------------------------------------------------------
+
+model Contract {
+  id            String    @id @default(cuid())
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String    @unique
+  monthlyAmount Int // so'mda
+  discount      Int       @default(0) // foizda yoki summa (biznes qoidasiga qarab)
+  startDate     DateTime
+  endDate       DateTime?
+  invoices      Invoice[]
+  createdAt     DateTime  @default(now())
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+  period     String // "2026-01" (yil-oy)
+  amount     Int
+  dueDate    DateTime
+  status     InvoiceStatus @default(PENDING)
+  payments   Payment[]
+  createdAt  DateTime      @default(now())
+
+  @@unique([contractId, period])
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  amount       Int
+  method       PaymentMethod @default(CASH)
+  date         DateTime      @default(now())
+  receivedBy   User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  receivedById String?
+  createdAt    DateTime      @default(now())
+}
+
+// ------------------------------------------------------------------
+// Xabarnomalar (SMS)
+// ------------------------------------------------------------------
+
+model Message {
+  id        String         @id @default(cuid())
+  student   Student?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId String?
+  channel   MessageChannel @default(SMS)
+  toPhone   String
+  body      String
+  status    MessageStatus  @default(QUEUED)
+  sentAt    DateTime?
+  createdAt DateTime       @default(now())
+}
+
+// ------------------------------------------------------------------
+// Testlar (qo'lda / fayl / AI) va natijalar
+// ------------------------------------------------------------------
+
+model Test {
+  id         String       @id @default(cuid())
+  title      String
+  subject    Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subjectId  String?
+  topic      String?
+  difficulty String? // easy / medium / hard
+  source     TestSource   @default(MANUAL)
+  // Savollar JSON ko'rinishida:
+  // [{ "question": "...", "options": [{ "text": "...", "correct": true }] }]
+  questions  Json
+  createdBy  User?        @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  results    TestResult[]
+  createdAt  DateTime     @default(now())
+}
+
+model TestResult {
+  id          String   @id @default(cuid())
+  test        Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  testId      String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  score       Int // to'g'ri javoblar soni
+  percent     Float // foiz
+  durationSec Int? // sarflangan vaqt (soniya)
+  takenAt     DateTime @default(now())
+}
+
+// ------------------------------------------------------------------
+// Audit jurnali
+// ------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  action    String // "CREATE", "UPDATE", "DELETE", "LOGIN"
+  entity    String // "Student", "Grade", ...
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+}

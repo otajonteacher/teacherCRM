@@ -1,0 +1,49 @@
+{
+  "common": {
+    "appName": "School CRM",
+    "loading": "Loading...",
+    "comingSoon": "Coming soon",
+    "logout": "Log out",
+    "language": "Language"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Enter your credentials to access your account",
+    "loginLabel": "Email or phone",
+    "passwordLabel": "Password",
+    "submit": "Sign in",
+    "signingIn": "Signing in...",
+    "error": "Invalid login or password",
+    "demoTitle": "Demo accounts (password: password123)"
+  },
+  "roles": {
+    "ADMIN": "Administrator",
+    "TEACHER": "Teacher",
+    "ACCOUNTANT": "Accountant",
+    "PARENT": "Parent / Student"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "students": "Students",
+    "teachers": "Teachers",
+    "classes": "Classes",
+    "schedule": "Schedule",
+    "attendance": "Attendance",
+    "grades": "Grades",
+    "ranking": "Ranking",
+    "penalties": "Penalty points",
+    "penaltyCriteria": "Penalty criteria",
+    "payments": "Payments",
+    "reports": "Reports",
+    "messages": "SMS messages",
+    "tests": "Tests",
+    "users": "Users",
+    "aiAssistant": "AI assistant"
+  },
+  "dashboard": {
+    "welcome": "Welcome",
+    "yourRole": "Your role",
+    "intro": "This is the school CRM dashboard. Modules are being added step by step.",
+    "moduleComingSoon": "This module will be launched in the next phases."
+  }
+}

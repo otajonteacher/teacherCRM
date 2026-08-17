@@ -1,0 +1,95 @@
+import {
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  School,
+  CalendarDays,
+  ClipboardCheck,
+  BookOpenCheck,
+  Trophy,
+  AlertTriangle,
+  SlidersHorizontal,
+  Wallet,
+  BarChart3,
+  MessageSquare,
+  FileQuestion,
+  UserCog,
+  Bot,
+  type LucideIcon,
+} from "lucide-react";
+import type { Role } from "@prisma/client";
+
+export type NavItem = { key: string; href: string; icon: LucideIcon };
+
+// Umumiy elementlar (bir necha rolda takrorlanadi)
+const item = {
+  dashboard: { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
+  students: { key: "students", href: "/students", icon: Users },
+  teachers: { key: "teachers", href: "/teachers", icon: GraduationCap },
+  classes: { key: "classes", href: "/classes", icon: School },
+  schedule: { key: "schedule", href: "/schedule", icon: CalendarDays },
+  attendance: { key: "attendance", href: "/attendance", icon: ClipboardCheck },
+  grades: { key: "grades", href: "/grades", icon: BookOpenCheck },
+  ranking: { key: "ranking", href: "/ranking", icon: Trophy },
+  penalties: { key: "penalties", href: "/penalties", icon: AlertTriangle },
+  penaltyCriteria: {
+    key: "penaltyCriteria",
+    href: "/penalty-criteria",
+    icon: SlidersHorizontal,
+  },
+  payments: { key: "payments", href: "/payments", icon: Wallet },
+  reports: { key: "reports", href: "/reports", icon: BarChart3 },
+  messages: { key: "messages", href: "/messages", icon: MessageSquare },
+  tests: { key: "tests", href: "/tests", icon: FileQuestion },
+  aiAssistant: { key: "aiAssistant", href: "/ai-assistant", icon: Bot },
+  users: { key: "users", href: "/users", icon: UserCog },
+} satisfies Record<string, NavItem>;
+
+// TZ 2.1-bo'limidagi ruxsat matritsasi asosida rol menyusi.
+export const navByRole: Record<Role, NavItem[]> = {
+  ADMIN: [
+    item.dashboard,
+    item.students,
+    item.teachers,
+    item.classes,
+    item.schedule,
+    item.attendance,
+    item.grades,
+    item.ranking,
+    item.penalties,
+    item.penaltyCriteria,
+    item.payments,
+    item.reports,
+    item.messages,
+    item.tests,
+    item.aiAssistant,
+    item.users,
+  ],
+  TEACHER: [
+    item.dashboard,
+    item.students,
+    item.classes,
+    item.schedule,
+    item.attendance,
+    item.grades,
+    item.ranking,
+    item.penalties,
+    item.tests,
+    item.aiAssistant,
+  ],
+  ACCOUNTANT: [
+    item.dashboard,
+    item.students,
+    item.payments,
+    item.reports,
+    item.messages,
+  ],
+  PARENT: [
+    item.dashboard,
+    item.grades,
+    item.attendance,
+    item.ranking,
+    item.penalties,
+    item.payments,
+  ],
+};

@@ -1,0 +1,49 @@
+{
+  "common": {
+    "appName": "Школьная CRM",
+    "loading": "Загрузка...",
+    "comingSoon": "Скоро",
+    "logout": "Выйти",
+    "language": "Язык"
+  },
+  "login": {
+    "title": "Вход в систему",
+    "subtitle": "Введите данные для входа в аккаунт",
+    "loginLabel": "Email или телефон",
+    "passwordLabel": "Пароль",
+    "submit": "Войти",
+    "signingIn": "Вход...",
+    "error": "Неверный логин или пароль",
+    "demoTitle": "Демо-аккаунты (пароль: password123)"
+  },
+  "roles": {
+    "ADMIN": "Администратор",
+    "TEACHER": "Учитель",
+    "ACCOUNTANT": "Бухгалтер",
+    "PARENT": "Родитель / Ученик"
+  },
+  "nav": {
+    "dashboard": "Панель",
+    "students": "Ученики",
+    "teachers": "Учителя",
+    "classes": "Классы",
+    "schedule": "Расписание",
+    "attendance": "Посещаемость",
+    "grades": "Оценки",
+    "ranking": "Рейтинг",
+    "penalties": "Штрафные баллы",
+    "penaltyCriteria": "Критерии штрафов",
+    "payments": "Платежи",
+    "reports": "Отчёты",
+    "messages": "SMS сообщения",
+    "tests": "Тесты",
+    "users": "Пользователи",
+    "aiAssistant": "AI помощник"
+  },
+  "dashboard": {
+    "welcome": "Добро пожаловать",
+    "yourRole": "Ваша роль",
+    "intro": "Это панель управления школьной CRM. Модули добавляются поэтапно.",
+    "moduleComingSoon": "Этот модуль будет запущен на следующих этапах."
+  }
+}

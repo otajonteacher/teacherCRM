@@ -1,0 +1,102 @@
+import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const db = new PrismaClient();
+
+async function main() {
+  console.log("🌱 Seed boshlandi...");
+
+  const passwordHash = await bcrypt.hash("password123", 10);
+
+  // 1) Har bir rol uchun demo foydalanuvchi
+  const users: { email: string; fullName: string; role: Role }[] = [
+    { email: "admin@maktab.uz", fullName: "Bosh Administrator", role: Role.ADMIN },
+    { email: "teacher@maktab.uz", fullName: "Aziz O'qituvchi", role: Role.TEACHER },
+    { email: "accountant@maktab.uz", fullName: "Malika Buxgalter", role: Role.ACCOUNTANT },
+    { email: "parent@maktab.uz", fullName: "Karim Ota-ona", role: Role.PARENT },
+  ];
+
+  for (const u of users) {
+    await db.user.upsert({
+      where: { email: u.email },
+      update: { fullName: u.fullName, role: u.role, passwordHash, isActive: true },
+      create: { email: u.email, fullName: u.fullName, role: u.role, passwordHash },
+    });
+  }
+  console.log(`✅ ${users.length} ta foydalanuvchi yaratildi (parol: password123)`);
+
+  // 2) Fanlar (3 tilda)
+  const subjects = [
+    { nameUz: "Matematika", nameRu: "Математика", nameEn: "Mathematics" },
+    { nameUz: "Fizika", nameRu: "Физика", nameEn: "Physics" },
+    { nameUz: "Ona tili", nameRu: "Родной язык", nameEn: "Native language" },
+    { nameUz: "Ingliz tili", nameRu: "Английский язык", nameEn: "English" },
+    { nameUz: "Tarix", nameRu: "История", nameEn: "History" },
+  ];
+  for (const s of subjects) {
+    const exists = await db.subject.findFirst({ where: { nameUz: s.nameUz } });
+    if (!exists) await db.subject.create({ data: s });
+  }
+  console.log(`✅ ${subjects.length} ta fan yaratildi`);
+
+  // 3) Jarima mezonlari (admin boshqaradi)
+  const admin = await db.user.findUnique({ where: { email: "admin@maktab.uz" } });
+  const criteria = [
+    { name: "Darsga kechikish", points: 1, category: "Intizom" },
+    { name: "Darsni sababsiz qoldirish", points: 3, category: "Davomat" },
+    { name: "Forma qoidasini buzish", points: 1, category: "Forma" },
+    { name: "Darsda tartibsizlik", points: 2, category: "Intizom" },
+  ];
+  for (const c of criteria) {
+    const exists = await db.penaltyCriterion.findFirst({ where: { name: c.name } });
+    if (!exists) {
+      await db.penaltyCriterion.create({
+        data: { ...c, createdById: admin?.id },
+      });
+    }
+  }
+  console.log(`✅ ${criteria.length} ta jarima mezoni yaratildi`);
+
+  // 4) Joriy o'quv yili va 4 ta chorak
+  const yearName = "2025-2026";
+  let year = await db.academicYear.findFirst({ where: { name: yearName } });
+  if (!year) {
+    year = await db.academicYear.create({
+      data: {
+        name: yearName,
+        startDate: new Date("2025-09-01"),
+        endDate: new Date("2026-05-31"),
+        isCurrent: true,
+      },
+    });
+    const quarters = [
+      { name: 1, startDate: "2025-09-01", endDate: "2025-11-02" },
+      { name: 2, startDate: "2025-11-10", endDate: "2025-12-28" },
+      { name: 3, startDate: "2026-01-12", endDate: "2026-03-22" },
+      { name: 4, startDate: "2026-04-01", endDate: "2026-05-31" },
+    ];
+    for (const q of quarters) {
+      await db.quarter.create({
+        data: {
+          name: q.name,
+          startDate: new Date(q.startDate),
+          endDate: new Date(q.endDate),
+          academicYearId: year.id,
+        },
+      });
+    }
+    console.log("✅ O'quv yili va 4 ta chorak yaratildi");
+  }
+
+  console.log("🌱 Seed yakunlandi.");
+}
+
+main()
+  .then(async () => {
+    await db.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error("❌ Seed xatosi:", e);
+    await db.$disconnect();
+    process.exit(1);
+  });

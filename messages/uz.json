@@ -1,0 +1,49 @@
+{
+  "common": {
+    "appName": "Maktab CRM",
+    "loading": "Yuklanmoqda...",
+    "comingSoon": "Tez orada",
+    "logout": "Chiqish",
+    "language": "Til"
+  },
+  "login": {
+    "title": "Tizimga kirish",
+    "subtitle": "Hisobingizga kirish uchun ma'lumotlarni kiriting",
+    "loginLabel": "Email yoki telefon",
+    "passwordLabel": "Parol",
+    "submit": "Kirish",
+    "signingIn": "Kirilmoqda...",
+    "error": "Login yoki parol noto'g'ri",
+    "demoTitle": "Demo hisoblar (parol: password123)"
+  },
+  "roles": {
+    "ADMIN": "Administrator",
+    "TEACHER": "O'qituvchi",
+    "ACCOUNTANT": "Buxgalter",
+    "PARENT": "Ota-ona / O'quvchi"
+  },
+  "nav": {
+    "dashboard": "Boshqaruv paneli",
+    "students": "O'quvchilar",
+    "teachers": "O'qituvchilar",
+    "classes": "Sinflar",
+    "schedule": "Dars jadvali",
+    "attendance": "Davomat",
+    "grades": "Baholar",
+    "ranking": "Reyting",
+    "penalties": "Jarima balllar",
+    "penaltyCriteria": "Jarima mezonlari",
+    "payments": "To'lovlar",
+    "reports": "Hisobotlar",
+    "messages": "SMS xabarlar",
+    "tests": "Testlar",
+    "users": "Foydalanuvchilar",
+    "aiAssistant": "AI yordamchi"
+  },
+  "dashboard": {
+    "welcome": "Xush kelibsiz",
+    "yourRole": "Sizning rolingiz",
+    "intro": "Bu — maktab CRM tizimining boshqaruv paneli. Modullar bosqichma-bosqich qo'shilmoqda.",
+    "moduleComingSoon": "Ushbu modul keyingi bosqichlarda ishga tushiriladi."
+  }
+}
