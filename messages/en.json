@@ -4,7 +4,8 @@
     "loading": "Loading...",
     "comingSoon": "Coming soon",
     "logout": "Log out",
-    "language": "Language"
+    "language": "Language",
+    "openMenu": "Open menu"
   },
   "login": {
     "title": "Sign in",
