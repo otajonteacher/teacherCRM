@@ -21,7 +21,7 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   // Locale prefiksini ajratib olamiz: /uz/dashboard → locale="uz", path="/dashboard"
-  const localeMatch = pathname.match(/^\/([a-z]{2})(\/.*)?\/?)$/);
+  const localeMatch = pathname.match(/^\/([a-z]{2})(\/.*)?$/);
   const locale = localeMatch?.[1] ?? defaultLocale;
   const pathWithoutLocale = localeMatch?.[2] ?? "/";
 
