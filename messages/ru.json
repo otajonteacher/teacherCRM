@@ -4,7 +4,8 @@
     "loading": "Загрузка...",
     "comingSoon": "Скоро",
     "logout": "Выйти",
-    "language": "Язык"
+    "language": "Язык",
+    "openMenu": "Открыть меню"
   },
   "login": {
     "title": "Вход в систему",
