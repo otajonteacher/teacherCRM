@@ -4,7 +4,8 @@
     "loading": "Yuklanmoqda...",
     "comingSoon": "Tez orada",
     "logout": "Chiqish",
-    "language": "Til"
+    "language": "Til",
+    "openMenu": "Menyuni ochish"
   },
   "login": {
     "title": "Tizimga kirish",
