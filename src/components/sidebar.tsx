@@ -6,7 +6,12 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { navByRole } from "./nav-config";
 import { cn } from "@/lib/utils";
 
-export function Sidebar({ role }: { role: Role }) {
+interface SidebarProps {
+  role: Role;
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ role, onNavigate }: SidebarProps) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const items = navByRole[role];
@@ -19,6 +24,7 @@ export function Sidebar({ role }: { role: Role }) {
           <Link
             key={key}
             href={href}
+            onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               active
