@@ -19,6 +19,20 @@ import { hasRole } from "./rbac";
 export type SessionUser = NonNullable<Session["user"]>;
 
 /**
+ * next-intl'ning redirect() funksiyasi ichida NEXT_REDIRECT xatosini tashlaydi,
+ * ya'ni undan keyingi kod hech qachon bajarilmaydi. Ammo uning tip imzosi buni
+ * TypeScript'ga bildirmaydi, natijada TS18047 ("possibly null") xatosi chiqadi.
+ *
+ * Shu yordamchi qaytish tipini `never` qilib belgilaydi — shundan keyin TS
+ * narrowing to'g'ri ishlaydi va `as` / `!` kabi xavfli hiylalar kerak bo'lmaydi.
+ */
+function redirectNever(path: string): never {
+  redirect(path);
+  // Bu yerga hech qachon yetib kelmaydi (redirect yuqorida throw qiladi).
+  throw new Error(`Unreachable: redirect("${path}") did not throw`);
+}
+
+/**
  * Sessiyani talab qiladi.
  * Sessiya yo'q bo'lsa — /login ga yo'naltiradi (bu yerdan keyin kod bajarilmaydi).
  */
@@ -26,7 +40,7 @@ export async function requireAuth(): Promise<SessionUser> {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirectNever("/login");
   }
 
   return session.user;
@@ -44,7 +58,7 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
   const user = await requireAuth();
 
   if (!hasRole(user.role, roles)) {
-    redirect("/forbidden");
+    redirectNever("/forbidden");
   }
 
   return user;
