@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import createIntlMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
 import { locales, defaultLocale } from "./i18n/config";
-import { roleAllowedPaths } from "./lib/rbac";
+import { isPathAllowed } from "./lib/rbac";
 
 // next-intl middleware — til prefiksini boshqaradi
 const handleI18n = createIntlMiddleware({
@@ -40,14 +40,9 @@ export default auth((req) => {
       return NextResponse.redirect(new URL(`/${locale}/login`, req.url));
     }
 
-    // 2. RBAC tekshiruvi — rolga mos yo'lmi?
-    const role = req.auth.user.role;
-    const allowed = roleAllowedPaths[role] ?? [];
-    const canAccess = allowed.some(
-      (p) => pathWithoutLocale === p || pathWithoutLocale.startsWith(p + "/")
-    );
-
-    if (!canAccess) {
+    // 2. RBAC tekshiruvi — mantiq rbac.ts dagi isPathAllowed'da, bir joyda.
+    //    ADMIN bu funksiya ichida barcha yo'llardan o'tadi.
+    if (!isPathAllowed(req.auth.user.role, pathWithoutLocale)) {
       return NextResponse.redirect(new URL(`/${locale}/forbidden`, req.url));
     }
   }
