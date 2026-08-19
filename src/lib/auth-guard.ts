@@ -14,6 +14,10 @@ import { hasRole } from "./rbac";
  * Namuna:
  *   const user = await requireRole("ADMIN");
  *   const user = await requireAuth();
+ *
+ * MUHIM: bu qorovullar "qaysi ROLGA ruxsat" degan savolga javob beradi.
+ * "Qaysi QATORLARGA ruxsat" degan savol — src/lib/scope.ts (Punkt 2).
+ * Ikkisi birga ishlatiladi.
  */
 
 export type SessionUser = NonNullable<Session["user"]>;
@@ -26,7 +30,7 @@ export type SessionUser = NonNullable<Session["user"]>;
  * Shu yordamchi qaytish tipini `never` qilib belgilaydi — shundan keyin TS
  * narrowing to'g'ri ishlaydi va `as` / `!` kabi xavfli hiylalar kerak bo'lmaydi.
  */
-function redirectNever(path: string): never {
+export function redirectNever(path: string): never {
   redirect(path);
   // Bu yerga hech qachon yetib kelmaydi (redirect yuqorida throw qiladi).
   throw new Error(`Unreachable: redirect("${path}") did not throw`);
