@@ -5,6 +5,12 @@ import { z } from "zod";
 import type { Role, Locale } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logAudit, maskIdentifier } from "@/lib/audit";
+import {
+  clearLoginFailures,
+  getRequestIp,
+  isLoginRateLimited,
+  recordLoginFailure,
+} from "@/lib/rate-limit";
 
 // Login formasi validatsiyasi
 const credentialsSchema = z.object({
@@ -40,6 +46,7 @@ export const {
         password: { label: "Parol", type: "password" },
       },
       authorize: async (raw) => {
+        const ip = await getRequestIp();
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) {
           await logAudit({
@@ -52,6 +59,18 @@ export const {
 
         const { login, password } = parsed.data;
 
+        if (isLoginRateLimited(login, ip)) {
+          await logAudit({
+            action: "LOGIN_FAILED",
+            entity: "User",
+            meta: {
+              reason: "rate_limited",
+              login: maskIdentifier(login),
+            },
+          });
+          return null;
+        }
+
         // Email yoki telefon bo'yicha faol foydalanuvchini topamiz
         const user = await db.user.findFirst({
           where: {
@@ -60,6 +79,7 @@ export const {
           },
         });
         if (!user) {
+          recordLoginFailure(login, ip);
           await logAudit({
             action: "LOGIN_FAILED",
             entity: "User",
@@ -70,6 +90,7 @@ export const {
 
         const passwordOk = await bcrypt.compare(password, user.passwordHash);
         if (!passwordOk) {
+          recordLoginFailure(login, ip);
           await logAudit({
             userId: user.id,
             action: "LOGIN_FAILED",
@@ -79,6 +100,8 @@ export const {
           });
           return null;
         }
+
+        clearLoginFailures(login);
 
         return {
           id: user.id,
