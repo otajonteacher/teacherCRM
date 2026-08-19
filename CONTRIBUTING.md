@@ -73,8 +73,17 @@ torayadi**. `scope.ts` da bu `MATCH_NOTHING` bilan ta'minlangan.
 Foydalanuvchiga texnik detal chiqmaydi: stack trace, SQL, Prisma xato kodi yo'q.
 Prisma xatolari (`P2002` va h.k.) tarjima qilingan xabarga aylantiriladi
 (`prismaErrorMessage` — `safe-action.ts`).
+Sahifa xatolari: `error.tsx`, `not-found.tsx`, `global-error.tsx` — umumiy matn.
 
-## 7. Rollar va ruxsat
+## 7. Log gigienasi
+
+Server logiga `logError` (`src/lib/logger.ts`) orqali yoziladi.
+
+- Prod'da faqat JSON, `console.log` yo'q
+- Parol, token, to'liq PII yozilmaydi (`redactMeta`)
+- `error.message` / stack brauzerga chiqarilmaydi
+
+## 8. Rollar va ruxsat
 
 Ruxsat **faqat rol bo'yicha** — har bir foydalanuvchiga alohida ruxsat berish
 tizimi yo'q va rejalashtirilmagan. Sahifa darajasidagi ruxsat
@@ -87,7 +96,7 @@ o'z menyusidagi havolani bosib 403 oladi.
 ADMIN `isPathAllowed()` ichida qisqa tutashuv bilan barcha sahifalarga kiradi —
 yangi sahifa qo'shilib ro'yxat yangilanmasa ham bloklanmaydi.
 
-## 8. Audit jurnali
+## 9. Audit jurnali
 
 Har bir muhim amal `logAudit` orqali `AuditLog` ga yoziladi (kim, nima, qachon).
 
@@ -96,18 +105,18 @@ Har bir muhim amal `logAudit` orqali `AuditLog` ga yoziladi (kim, nima, qachon).
 - `meta` ga **parol, token, to'liq PII yozilmaydi** — faqat o'zgargan maydon nomlari
 - Jurnal xatosi asosiy amalni **to'xtatmaydi**
 
-## 9. Pul amallari
+## 10. Pul amallari
 
 - `$transaction` — invoice status va payment birga o'zgaradi
 - To'lov **o'chirilmaydi**, faqat bekor qilinadi (reversal yozuvi)
 - Idempotentlik: bir to'lov ikki marta yozilmasligi
 
-## 10. Sxema o'zgarishlari
+## 11. Sxema o'zgarishlari
 
 Sxema o'zgarishi doim **migratsiya** bilan (`prisma migrate dev`), `db:push`
 faqat tez prototip uchun. Migratsiyalar git'ga commit qilinadi.
 
-## 11. Git ish uslubi
+## 12. Git ish uslubi
 
 Har bir o'zgarish alohida branch va PR orqali ketadi. Merge tugmasini loyiha
 egasi bosadi. To'g'ridan-to'g'ri ishchi branchga push qilinmaydi.
