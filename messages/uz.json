@@ -22,6 +22,16 @@
     "description": "Bu bo'limga kirish uchun sizda yetarli huquq mavjud emas. Agar bu xato deb hisoblasangiz, administrator bilan bog'laning.",
     "backToDashboard": "Boshqaruv paneliga qaytish"
   },
+  "errors": {
+    "title": "Xatolik yuz berdi",
+    "description": "Kutilmagan xato. Qayta urinib ko'ring yoki administrator bilan bog'laning.",
+    "retry": "Qayta urinish"
+  },
+  "notFound": {
+    "title": "Sahifa topilmadi",
+    "description": "Bu manzil mavjud emas yoki ko'chirilgan.",
+    "home": "Boshqaruv paneliga qaytish"
+  },
   "roles": {
     "ADMIN": "Administrator",
     "TEACHER": "O'qituvchi",
