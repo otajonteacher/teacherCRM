@@ -6,10 +6,10 @@ import { z } from "zod";
  *
  * Login formasi (`z.string().min(1)`) o'zgarmaydi — mavjud hisoblar
  * (shu jumladan demo) kiraversin. Bu sxema FAQAT yangi parol yaratish
- * va o'zgartirish uchun: foydalanuvchi qo'shish, parolni almashtirish.
+ * va o'zgartirish uchun: foydalanuvchi qo'shish, /change-password.
  *
- * `mustChangePassword` maydoni va parolni tiklash (SMS) — alohida PR.
- * Sababi: sxema o'zgarishlari 12/13/15 bilan bitta migratsiyada ketadi.
+ * `mustChangePassword` — User maydoni + middleware + /change-password sahifasi.
+ * Parolni tiklash (SMS) — 10-bosqich.
  */
 
 export const MIN_PASSWORD_LENGTH = 8;

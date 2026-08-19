@@ -60,6 +60,11 @@ enum PaymentMethod {
   TRANSFER // O'tkazma
 }
 
+enum DiscountType {
+  PERCENT // foiz (0–100)
+  AMOUNT // so'mda summa
+}
+
 enum MessageChannel {
   SMS
 }
@@ -108,37 +113,38 @@ model Quarter {
 // ------------------------------------------------------------------
 
 model User {
-  id           String    @id @default(cuid())
-  email        String?   @unique
-  phone        String?   @unique
-  passwordHash String
-  fullName     String
-  role         Role
-  locale       Locale    @default(uz)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String   @id @default(cuid())
+  email              String?  @unique
+  phone              String?  @unique
+  passwordHash       String
+  fullName           String
+  role               Role
+  locale             Locale   @default(uz)
+  isActive           Boolean  @default(true)
+  // Yangi hisob: birinchi kirishda parol almashtiriladi. Demo seed = false.
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  // Rolga bog'liq profil (birga bittasi)
-  teacher   Teacher?
-  guardian  Guardian?
+  teacher  Teacher?
+  guardian Guardian?
 
-  // Audit
   auditLogs        AuditLog[]
-  issuedPenalties  Penalty[]  @relation("PenaltyIssuedBy")
+  issuedPenalties  Penalty[]          @relation("PenaltyIssuedBy")
   createdCriteria  PenaltyCriterion[] @relation("CriterionCreatedBy")
-  receivedPayments Payment[]  @relation("PaymentReceivedBy")
-  createdTests     Test[]     @relation("TestCreatedBy")
+  receivedPayments Payment[]          @relation("PaymentReceivedBy")
+  createdTests     Test[]             @relation("TestCreatedBy")
 }
 
 model Teacher {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String   @unique
-  subjects  Subject[] @relation("TeacherSubjects")
-  lessons   Lesson[]
-  homeroomClasses Class[] @relation("HomeroomTeacher")
-  createdAt DateTime @default(now())
+  id              String    @id @default(cuid())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String    @unique
+  subjects        Subject[] @relation("TeacherSubjects")
+  lessons         Lesson[]
+  homeroomClasses Class[]   @relation("HomeroomTeacher")
+  grades          Grade[]
+  createdAt       DateTime  @default(now())
 }
 
 model Guardian {
@@ -147,7 +153,7 @@ model Guardian {
   userId    String?   @unique
   fullName  String
   phone     String
-  relation  String? // qarindoshlik: ota, ona, vasiy
+  relation  String?
   students  Student[]
   createdAt DateTime  @default(now())
 }
@@ -167,9 +173,9 @@ model Student {
   enrollDate  DateTime      @default(now())
   status      StudentStatus @default(ACTIVE)
 
-  class     Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
-  classId   String?
-  guardian  Guardian? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+  class      Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  classId    String?
+  guardian   Guardian? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
   guardianId String?
 
   attendances Attendance[]
@@ -181,15 +187,17 @@ model Student {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([classId, status])
 }
 
 model Class {
-  id             String        @id @default(cuid())
-  name           String // masalan: "9-A"
-  grade          Int // sinf darajasi: 1..11
-  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
-  academicYearId String?
-  homeroomTeacher Teacher?     @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  id                String        @id @default(cuid())
+  name              String
+  grade             Int
+  academicYear      AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  academicYearId    String?
+  homeroomTeacher   Teacher?      @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
   homeroomTeacherId String?
 
   students Student[]
@@ -199,14 +207,14 @@ model Class {
 }
 
 model Subject {
-  id      String    @id @default(cuid())
-  nameUz  String
-  nameRu  String?
-  nameEn  String?
+  id       String    @id @default(cuid())
+  nameUz   String
+  nameRu   String?
+  nameEn   String?
   teachers Teacher[] @relation("TeacherSubjects")
-  lessons Lesson[]
-  grades  Grade[]
-  tests   Test[]
+  lessons  Lesson[]
+  grades   Grade[]
+  tests    Test[]
 }
 
 model Lesson {
@@ -217,14 +225,17 @@ model Lesson {
   subjectId String
   teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId String
-  dayOfWeek Int // 1 (dushanba) .. 7 (yakshanba)
-  startTime String // "08:30"
-  endTime   String // "09:15"
+  dayOfWeek Int
+  startTime String
+  endTime   String
   room      String?
 
   attendances Attendance[]
 
   createdAt DateTime @default(now())
+
+  @@index([classId, dayOfWeek])
+  @@index([teacherId, dayOfWeek])
 }
 
 // ------------------------------------------------------------------
@@ -237,13 +248,16 @@ model Attendance {
   studentId String
   lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId  String
-  date      DateTime
+  date      DateTime         @db.Date
   status    AttendanceStatus
   note      String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([studentId, lessonId, date])
+  @@index([studentId, date])
+  @@index([lessonId, date])
 }
 
 model Grade {
@@ -254,12 +268,17 @@ model Grade {
   subjectId String
   quarter   Quarter   @relation(fields: [quarterId], references: [id], onDelete: Cascade)
   quarterId String
-  value     Int // baho qiymati (5-balli yoki 100-balli konfiguratsiyaga qarab)
+  value     Int
   type      GradeType @default(DAILY)
   date      DateTime  @default(now())
+  teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   teacherId String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId, quarterId])
+  @@index([subjectId, quarterId])
 }
 
 // ------------------------------------------------------------------
@@ -267,16 +286,16 @@ model Grade {
 // ------------------------------------------------------------------
 
 model PenaltyCriterion {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
-  points      Int // ushbu mezon uchun jarima ball miqdori
-  category    String? // kechikish, intizom, forma qoidasi, ...
-  isActive    Boolean  @default(true)
-  createdBy   User?    @relation("CriterionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  points      Int
+  category    String?
+  isActive    Boolean   @default(true)
+  createdBy   User?     @relation("CriterionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdById String?
   penalties   Penalty[]
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 }
 
 model Penalty {
@@ -285,13 +304,16 @@ model Penalty {
   studentId   String
   criterion   PenaltyCriterion? @relation(fields: [criterionId], references: [id], onDelete: SetNull)
   criterionId String?
-  points      Int // mezon nusxasi (mezon o'zgarsa ham tarix saqlanadi)
+  points      Int
   note        String?
   issuedBy    User?             @relation("PenaltyIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
   issuedById  String?
   date        DateTime          @default(now())
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId, date])
 }
 
 // ------------------------------------------------------------------
@@ -299,29 +321,32 @@ model Penalty {
 // ------------------------------------------------------------------
 
 model Contract {
-  id            String    @id @default(cuid())
-  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId     String    @unique
-  monthlyAmount Int // so'mda
-  discount      Int       @default(0) // foizda yoki summa (biznes qoidasiga qarab)
+  id            String       @id @default(cuid())
+  student       Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String       @unique
+  monthlyAmount Int
+  discountType  DiscountType @default(PERCENT)
+  discountValue Int          @default(0)
   startDate     DateTime
   endDate       DateTime?
   invoices      Invoice[]
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime     @default(now())
 }
 
 model Invoice {
   id         String        @id @default(cuid())
   contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
   contractId String
-  period     String // "2026-01" (yil-oy)
+  period     String
   amount     Int
   dueDate    DateTime
   status     InvoiceStatus @default(PENDING)
   payments   Payment[]
   createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   @@unique([contractId, period])
+  @@index([status, dueDate])
 }
 
 model Payment {
@@ -334,6 +359,9 @@ model Payment {
   receivedBy   User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
   receivedById String?
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([invoiceId, date])
 }
 
 // ------------------------------------------------------------------
@@ -350,6 +378,8 @@ model Message {
   status    MessageStatus  @default(QUEUED)
   sentAt    DateTime?
   createdAt DateTime       @default(now())
+
+  @@index([status, createdAt])
 }
 
 // ------------------------------------------------------------------
@@ -357,20 +387,18 @@ model Message {
 // ------------------------------------------------------------------
 
 model Test {
-  id         String       @id @default(cuid())
-  title      String
-  subject    Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
-  subjectId  String?
-  topic      String?
-  difficulty String? // easy / medium / hard
-  source     TestSource   @default(MANUAL)
-  // Savollar JSON ko'rinishida:
-  // [{ "question": "...", "options": [{ "text": "...", "correct": true }] }]
-  questions  Json
-  createdBy  User?        @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  id          String     @id @default(cuid())
+  title       String
+  subject     Subject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subjectId   String?
+  topic       String?
+  difficulty  String?
+  source      TestSource @default(MANUAL)
+  questions   Json
+  createdBy   User?      @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdById String?
-  results    TestResult[]
-  createdAt  DateTime     @default(now())
+  results     TestResult[]
+  createdAt   DateTime   @default(now())
 }
 
 model TestResult {
@@ -379,10 +407,13 @@ model TestResult {
   testId      String
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String
-  score       Int // to'g'ri javoblar soni
-  percent     Float // foiz
-  durationSec Int? // sarflangan vaqt (soniya)
+  score       Int
+  percent     Float
+  durationSec Int?
   takenAt     DateTime @default(now())
+
+  @@index([testId, score])
+  @@index([studentId, takenAt])
 }
 
 // ------------------------------------------------------------------
@@ -393,9 +424,12 @@ model AuditLog {
   id        String   @id @default(cuid())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId    String?
-  action    String // "CREATE", "UPDATE", "DELETE", "LOGIN"
-  entity    String // "Student", "Grade", ...
+  action    String
+  entity    String
   entityId  String?
   meta      Json?
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
 }

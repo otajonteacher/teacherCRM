@@ -17,6 +17,16 @@
     "error": "Login yoki parol noto'g'ri",
     "demoTitle": "Demo hisoblar (parol: password123)"
   },
+  "changePassword": {
+    "title": "Parolni almashtirish",
+    "subtitle": "Davom etish uchun yangi parol o'rnating.",
+    "currentLabel": "Joriy parol",
+    "newLabel": "Yangi parol",
+    "confirmLabel": "Yangi parolni tasdiqlang",
+    "hint": "Kamida 8 belgi, harf va raqam.",
+    "submit": "Saqlash",
+    "saving": "Saqlanmoqda..."
+  },
   "forbidden": {
     "title": "Ruxsat yo'q",
     "description": "Bu bo'limga kirish uchun sizda yetarli huquq mavjud emas. Agar bu xato deb hisoblasangiz, administrator bilan bog'laning.",

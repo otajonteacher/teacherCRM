@@ -71,7 +71,6 @@ export const {
           return null;
         }
 
-        // Email yoki telefon bo'yicha faol foydalanuvchini topamiz
         const user = await db.user.findFirst({
           where: {
             isActive: true,
@@ -109,6 +108,7 @@ export const {
           email: user.email ?? undefined,
           role: user.role,
           locale: user.locale,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -118,6 +118,7 @@ export const {
       if (user) {
         token.role = user.role;
         token.locale = user.locale;
+        token.mustChangePassword = user.mustChangePassword;
         token.checkedAt = Date.now();
         return token;
       }
@@ -132,16 +133,21 @@ export const {
 
       const dbUser = await db.user.findUnique({
         where: { id: userId },
-        select: { isActive: true, role: true, locale: true },
+        select: {
+          isActive: true,
+          role: true,
+          locale: true,
+          mustChangePassword: true,
+        },
       });
 
-      // Bloklangan yoki o'chirilgan hisob — tokenni bekor qilamiz.
       if (!dbUser || !dbUser.isActive) {
         return null;
       }
 
       token.role = dbUser.role;
       token.locale = dbUser.locale;
+      token.mustChangePassword = dbUser.mustChangePassword;
       token.checkedAt = Date.now();
       return token;
     },
@@ -150,6 +156,7 @@ export const {
         session.user.id = token.sub as string;
         session.user.role = token.role as Role;
         session.user.locale = token.locale as Locale;
+        session.user.mustChangePassword = token.mustChangePassword;
       }
       return session;
     },
@@ -165,7 +172,6 @@ export const {
       });
     },
     async signOut(message) {
-      // JWT strategiyada signOut { token } beradi. AdapterSession da user yo'q.
       const userId =
         "token" in message && typeof message.token?.sub === "string"
           ? message.token.sub
