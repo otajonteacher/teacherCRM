@@ -5,11 +5,9 @@ import bcrypt from "bcryptjs";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { passwordSchema } from "@/lib/password";
-import {
-  createAction,
-  formDataToObject,
-  type ActionResult,
-} from "@/lib/safe-action";
+import { requireAuth } from "@/lib/auth-guard";
+import { logAudit } from "@/lib/audit";
+import type { ActionResult } from "@/lib/safe-action";
 
 const changePasswordSchema = z
   .object({
@@ -22,50 +20,56 @@ const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-const changePasswordAction = createAction({
-  schema: changePasswordSchema,
-  audit: {
-    action: "PASSWORD_CHANGED",
-    entity: "User",
-    entityId: (_input, _result, user) => user.id,
-  },
-  handler: async (input, user) => {
-    const dbUser = await db.user.findUnique({
-      where: { id: user.id },
-      select: { passwordHash: true },
-    });
-    if (!dbUser) {
-      throw new Error("NOT_FOUND");
-    }
-
-    const currentOk = await bcrypt.compare(
-      input.currentPassword,
-      dbUser.passwordHash
-    );
-    if (!currentOk) {
-      return { ok: false as const, error: "Joriy parol noto'g'ri." };
-    }
-
-    const passwordHash = await bcrypt.hash(input.newPassword, 10);
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash,
-        mustChangePassword: false,
-      },
-    });
-
-    await signOut({ redirectTo: "/login" });
-  },
-});
-
 export async function changePassword(
   _prev: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
-  const result = await changePasswordAction(formDataToObject(formData));
-  if (result.ok && result.data && typeof result.data === "object" && "ok" in result.data) {
-    return result.data as ActionResult;
+  const user = await requireAuth();
+
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: String(formData.get("currentPassword") ?? ""),
+    newPassword: String(formData.get("newPassword") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Ma'lumotlar noto'g'ri.",
+    };
   }
-  return result;
+
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { passwordHash: true },
+  });
+  if (!dbUser) {
+    return { ok: false, error: "Amal bajarilmadi. Qayta urinib ko'ring." };
+  }
+
+  const currentOk = await bcrypt.compare(
+    parsed.data.currentPassword,
+    dbUser.passwordHash
+  );
+  if (!currentOk) {
+    return { ok: false, error: "Joriy parol noto'g'ri." };
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+    },
+  });
+
+  await logAudit({
+    userId: user.id,
+    action: "PASSWORD_CHANGED",
+    entity: "User",
+    entityId: user.id,
+  });
+
+  await signOut({ redirectTo: "/login" });
+  return { ok: true, data: undefined };
 }
