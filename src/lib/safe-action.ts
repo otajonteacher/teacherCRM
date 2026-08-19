@@ -158,12 +158,14 @@ export function createAction<TSchema extends z.ZodTypeAny, TResult>(
 
 /**
  * `<form action={...}>` uchun: FormData ni obyektga aylantirib createAction ga beradi.
+ * React form action `void | Promise<void>` kutadi — natijani qaytarmaymiz.
+ * Natija kerak bo'lsa `createAction` ishlating.
  */
 export function createFormAction<TSchema extends z.ZodTypeAny, TResult>(
   options: SafeActionOptions<TSchema, TResult>
 ) {
   const run = createAction(options);
-  return async (formData: FormData): Promise<ActionResult<TResult>> => {
-    return run(formDataToObject(formData));
+  return async (formData: FormData): Promise<void> => {
+    await run(formDataToObject(formData));
   };
 }
