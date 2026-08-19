@@ -61,7 +61,9 @@ torayadi**. `scope.ts` da bu `MATCH_NOTHING` bilan ta'minlangan.
 
 ## 5. Klientdan kelgan ma'lumotga ishonilmaydi
 
-- Har bir Server Action kirishi `zod` bilan tekshiriladi — istisno yo'q
+- Har bir Server Action **`createAction` / `createFormAction`** (`src/lib/safe-action.ts`)
+  orqali yoziladi — istisno yo'q. Wrapper: rol → zod → handler → audit.
+- Qo'lda `"use server"` funksiya yozib `requireRole` ni unutish — qabul qilinmaydi.
 - Jarima ball **mezondan serverda** olinadi, klientdan emas
 - Test to'g'ri javoblari klientga **yuborilmaydi**, baholash serverda
 - Test yechish vaqti (`durationSec`) serverda hisoblanadi
@@ -69,7 +71,8 @@ torayadi**. `scope.ts` da bu `MATCH_NOTHING` bilan ta'minlangan.
 ## 6. Xato xabarlari
 
 Foydalanuvchiga texnik detal chiqmaydi: stack trace, SQL, Prisma xato kodi yo'q.
-Prisma xatolari (`P2002` va h.k.) tarjima qilingan xabarga aylantiriladi.
+Prisma xatolari (`P2002` va h.k.) tarjima qilingan xabarga aylantiriladi
+(`prismaErrorMessage` — `safe-action.ts`).
 
 ## 7. Rollar va ruxsat
 
@@ -86,8 +89,12 @@ yangi sahifa qo'shilib ro'yxat yangilanmasa ham bloklanmaydi.
 
 ## 8. Audit jurnali
 
-Har bir muhim amal `AuditLog` ga yoziladi (kim, nima, qachon). `meta` ga
-**parol, token, to'liq PII yozilmaydi** — faqat o'zgargan maydon nomlari.
+Har bir muhim amal `logAudit` orqali `AuditLog` ga yoziladi (kim, nima, qachon).
+
+- `LOGIN` / `LOGOUT` / `LOGIN_FAILED` — `src/auth.ts` events / authorize
+- `CREATE` / `UPDATE` / `DELETE` — `createAction` ning `audit` maydoni
+- `meta` ga **parol, token, to'liq PII yozilmaydi** — faqat o'zgargan maydon nomlari
+- Jurnal xatosi asosiy amalni **to'xtatmaydi**
 
 ## 9. Pul amallari
 
