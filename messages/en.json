@@ -17,6 +17,11 @@
     "error": "Invalid login or password",
     "demoTitle": "Demo accounts (password: password123)"
   },
+  "forbidden": {
+    "title": "Access denied",
+    "description": "You do not have sufficient permissions to view this section. If you believe this is a mistake, please contact your administrator.",
+    "backToDashboard": "Back to dashboard"
+  },
   "roles": {
     "ADMIN": "Administrator",
     "TEACHER": "Teacher",
