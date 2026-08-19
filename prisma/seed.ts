@@ -22,7 +22,6 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(seedPassword, 10);
 
-  // 1) Har bir rol uchun demo foydalanuvchi
   const users: { email: string; fullName: string; role: Role }[] = [
     { email: "admin@maktab.uz", fullName: "Bosh Administrator", role: Role.ADMIN },
     { email: "teacher@maktab.uz", fullName: "Aziz O'qituvchi", role: Role.TEACHER },
@@ -33,13 +32,24 @@ async function main() {
   for (const u of users) {
     await db.user.upsert({
       where: { email: u.email },
-      update: { fullName: u.fullName, role: u.role, passwordHash, isActive: true },
-      create: { email: u.email, fullName: u.fullName, role: u.role, passwordHash },
+      update: {
+        fullName: u.fullName,
+        role: u.role,
+        passwordHash,
+        isActive: true,
+        mustChangePassword: false,
+      },
+      create: {
+        email: u.email,
+        fullName: u.fullName,
+        role: u.role,
+        passwordHash,
+        mustChangePassword: false,
+      },
     });
   }
   console.log(`✅ ${users.length} ta foydalanuvchi yaratildi (parol: SEED_PASSWORD)`);
 
-  // 2) Fanlar (3 tilda)
   const subjects = [
     { nameUz: "Matematika", nameRu: "Математика", nameEn: "Mathematics" },
     { nameUz: "Fizika", nameRu: "Физика", nameEn: "Physics" },
@@ -53,7 +63,6 @@ async function main() {
   }
   console.log(`✅ ${subjects.length} ta fan yaratildi`);
 
-  // 3) Jarima mezonlari (admin boshqaradi)
   const admin = await db.user.findUnique({ where: { email: "admin@maktab.uz" } });
   const criteria = [
     { name: "Darsga kechikish", points: 1, category: "Intizom" },
@@ -71,7 +80,6 @@ async function main() {
   }
   console.log(`✅ ${criteria.length} ta jarima mezoni yaratildi`);
 
-  // 4) Joriy o'quv yili va 4 ta chorak
   const yearName = "2025-2026";
   let year = await db.academicYear.findFirst({ where: { name: yearName } });
   if (!year) {
