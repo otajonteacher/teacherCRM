@@ -22,12 +22,15 @@ export function homePathForRole(_role: Role): string {
  * Middleware shu jadvalga qarab RBAC tekshiradi.
  *
  * MUHIM: bu ro'yxat `src/components/nav-config.ts` dagi `navByRole` bilan
- * mos bo'lishi shart. Menyuda havola ko'rinib, bu ro'yxatda yo'q bo'lsa,
+ * mos bo'lishi SHART. Menyuda havola ko'rinib, bu ro'yxatda yo'q bo'lsa,
  * foydalanuvchi o'z menyusidagi havolani bosib 403 oladi.
+ *
+ * Eslatma: bu faqat SAHIFA darajasidagi ruxsat. "Qaysi qatorlarni ko'rish
+ * mumkin" degan savol — alohida masala (IDOR himoyasi, keyingi bosqich).
  */
 export const roleAllowedPaths: Record<Role, string[]> = {
-  // Admin — hamma sahifaga kirish (pastdagi isPathAllowed'da ham qo'shimcha
-  // himoya bor: ADMIN ro'yxatdan qat'i nazar hamma joyga kiradi)
+  // Admin — hamma sahifaga kirish. Pastdagi isPathAllowed'da qo'shimcha
+  // himoya bor: ADMIN ro'yxatdan qat'i nazar hamma joyga kiradi.
   ADMIN: [
     "/dashboard",
     "/students",
@@ -47,7 +50,7 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/ai-assistant",
   ],
 
-  // O'qituvchi
+  // O'qituvchi — o'quv jarayoni + AI yordamchi (TZ 15-bosqich)
   TEACHER: [
     "/dashboard",
     "/students",
@@ -58,22 +61,25 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/ranking",
     "/penalties",
     "/tests",
+    "/ai-assistant",
   ],
 
-  // Buxgalter
+  // Buxgalter — moliya + to'lov eslatmalarini SMS qilish uchun /messages
   ACCOUNTANT: [
     "/dashboard",
     "/students",
     "/payments",
     "/reports",
+    "/messages",
   ],
 
-  // Ota-ona / O'quvchi
+  // Ota-ona / O'quvchi — o'z farzandining jarima ballarini ham ko'radi
   PARENT: [
     "/dashboard",
     "/grades",
     "/attendance",
     "/ranking",
+    "/penalties",
     "/payments",
   ],
 };
