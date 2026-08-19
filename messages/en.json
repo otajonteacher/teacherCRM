@@ -17,6 +17,16 @@
     "error": "Invalid login or password",
     "demoTitle": "Demo accounts (password: password123)"
   },
+  "changePassword": {
+    "title": "Change password",
+    "subtitle": "Set a new password to continue.",
+    "currentLabel": "Current password",
+    "newLabel": "New password",
+    "confirmLabel": "Confirm new password",
+    "hint": "At least 8 characters, including a letter and a number.",
+    "submit": "Save",
+    "saving": "Saving..."
+  },
   "forbidden": {
     "title": "Access denied",
     "description": "You do not have sufficient permissions to view this section. If you believe this is a mistake, please contact your administrator.",
