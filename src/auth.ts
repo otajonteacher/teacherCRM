@@ -156,7 +156,7 @@ export const {
         session.user.id = token.sub as string;
         session.user.role = token.role as Role;
         session.user.locale = token.locale as Locale;
-        session.user.mustChangePassword = token.mustChangePassword;
+        session.user.mustChangePassword = token.mustChangePassword === true;
       }
       return session;
     },
