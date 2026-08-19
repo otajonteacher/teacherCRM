@@ -22,6 +22,16 @@
     "description": "You do not have sufficient permissions to view this section. If you believe this is a mistake, please contact your administrator.",
     "backToDashboard": "Back to dashboard"
   },
+  "errors": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again or contact your administrator.",
+    "retry": "Try again"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "This address does not exist or has been moved.",
+    "home": "Back to dashboard"
+  },
   "roles": {
     "ADMIN": "Administrator",
     "TEACHER": "Teacher",
