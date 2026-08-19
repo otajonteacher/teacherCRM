@@ -1,16 +1,17 @@
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { env } from "../src/lib/env";
 
 const db = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV === "production") {
+  if (env.NODE_ENV === "production") {
     throw new Error(
       "Seed productionda ishlamaydi. Demo hisoblar prod'ga tushmasligi kerak."
     );
   }
 
-  const seedPassword = process.env.SEED_PASSWORD;
+  const seedPassword = env.SEED_PASSWORD;
   if (!seedPassword) {
     throw new Error(
       "SEED_PASSWORD .env da yo'q. .env.example ni ko'rib qo'ying."
