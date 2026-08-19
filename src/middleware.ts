@@ -12,10 +12,13 @@ const handleI18n = createIntlMiddleware({
 });
 
 /**
- * Asosiy middleware:
+ * Asosiy middleware (birinchi qatlam himoya):
  * 1. Agar sessiya yo'q bo'lsa → /login ga yo'naltiradi
- * 2. Agar rolga ruxsat yo'q bo'lsa → /dashboard ga qaytaradi
+ * 2. Agar rolga ruxsat yo'q bo'lsa → /forbidden (403) ga yuboradi
  * 3. next-intl til prefiksini qo'shadi
+ *
+ * MUHIM: bu faqat sahifa navigatsiyasini ushlaydi. Server Action va page.tsx
+ * uchun ikkinchi qatlam — src/lib/auth-guard.ts (requireAuth / requireRole).
  */
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -28,6 +31,7 @@ export default auth((req) => {
   // Ochiq (himoyasiz) yo'llar
   const isPublic =
     pathWithoutLocale.startsWith("/login") ||
+    pathWithoutLocale.startsWith("/forbidden") ||
     pathWithoutLocale === "/" ||
     pathWithoutLocale === "";
 
@@ -48,9 +52,9 @@ export default auth((req) => {
     );
 
     if (!canAccess) {
-      // Ruxsat yo'q — dashboard ga qaytaramiz
-      const dashUrl = new URL(`/${locale}/dashboard`, req.url);
-      return NextResponse.redirect(dashUrl);
+      // Ruxsat yo'q — 403 sahifasiga yuboramiz
+      const forbiddenUrl = new URL(`/${locale}/forbidden`, req.url);
+      return NextResponse.redirect(forbiddenUrl);
     }
   }
 
