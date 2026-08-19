@@ -21,10 +21,13 @@ export function homePathForRole(_role: Role): string {
  * Har bir rol uchun ruxsat berilgan URL prefikslari.
  * Middleware shu jadvalga qarab RBAC tekshiradi.
  *
- * Qoida: agar yo'l prefiks bilan boshlanmasa — /dashboard ga qaytariladi.
+ * MUHIM: bu ro'yxat `src/components/nav-config.ts` dagi `navByRole` bilan
+ * mos bo'lishi shart. Menyuda havola ko'rinib, bu ro'yxatda yo'q bo'lsa,
+ * foydalanuvchi o'z menyusidagi havolani bosib 403 oladi.
  */
 export const roleAllowedPaths: Record<Role, string[]> = {
-  // Admin — hamma sahifaga kirish
+  // Admin — hamma sahifaga kirish (pastdagi isPathAllowed'da ham qo'shimcha
+  // himoya bor: ADMIN ro'yxatdan qat'i nazar hamma joyga kiradi)
   ADMIN: [
     "/dashboard",
     "/students",
@@ -35,6 +38,7 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/grades",
     "/ranking",
     "/penalties",
+    "/penalty-criteria",
     "/payments",
     "/reports",
     "/messages",
@@ -73,3 +77,23 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/payments",
   ],
 };
+
+/**
+ * Berilgan rol ushbu yo'lga (locale prefiksisiz) kira oladimi?
+ *
+ * Middleware va server qorovullari SHU funksiyadan foydalanadi — tekshiruv
+ * mantig'i bir joyda turadi, ikki nusxada emas.
+ *
+ * @param role - foydalanuvchi roli
+ * @param path - locale prefiksisiz yo'l, masalan "/students/42"
+ */
+export function isPathAllowed(role: Role | undefined, path: string): boolean {
+  if (!role) return false;
+
+  // Bosh administrator — ta'rifi bo'yicha barcha sahifalarga kirish huquqiga ega.
+  // Yangi sahifa qo'shilib, ro'yxatni yangilash esdan chiqsa ham ADMIN bloklanmaydi.
+  if (role === "ADMIN") return true;
+
+  const allowed = roleAllowedPaths[role] ?? [];
+  return allowed.some((p) => path === p || path.startsWith(p + "/"));
+}
