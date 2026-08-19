@@ -4,9 +4,22 @@ import bcrypt from "bcryptjs";
 const db = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Seed productionda ishlamaydi. Demo hisoblar prod'ga tushmasligi kerak."
+    );
+  }
+
+  const seedPassword = process.env.SEED_PASSWORD;
+  if (!seedPassword) {
+    throw new Error(
+      "SEED_PASSWORD .env da yo'q. .env.example ni ko'rib qo'ying."
+    );
+  }
+
   console.log("🌱 Seed boshlandi...");
 
-  const passwordHash = await bcrypt.hash("password123", 10);
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
 
   // 1) Har bir rol uchun demo foydalanuvchi
   const users: { email: string; fullName: string; role: Role }[] = [
@@ -23,7 +36,7 @@ async function main() {
       create: { email: u.email, fullName: u.fullName, role: u.role, passwordHash },
     });
   }
-  console.log(`✅ ${users.length} ta foydalanuvchi yaratildi (parol: password123)`);
+  console.log(`✅ ${users.length} ta foydalanuvchi yaratildi (parol: SEED_PASSWORD)`);
 
   // 2) Fanlar (3 tilda)
   const subjects = [
