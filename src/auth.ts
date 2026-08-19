@@ -109,12 +109,11 @@ export const {
       });
     },
     async signOut(message) {
+      // JWT strategiyada signOut { token } beradi. AdapterSession da user yo'q.
       const userId =
         "token" in message && typeof message.token?.sub === "string"
           ? message.token.sub
-          : "session" in message
-            ? message.session?.user?.id ?? null
-            : null;
+          : null;
 
       await logAudit({
         userId,
