@@ -12,13 +12,24 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
+/** Sessiya umri: 8 soat. Standart 30 kun emas — ishdan bo'shatilgan o'qituvchi uzoq qolmasin. */
+const SESSION_MAX_AGE_SEC = 8 * 60 * 60;
+/** Token yangilanish oralig'i: 1 soat. */
+const SESSION_UPDATE_AGE_SEC = 60 * 60;
+/** DB dan isActive/role qayta o'qish oralig'i: 5 daqiqa. */
+const JWT_RECHECK_MS = 5 * 60 * 1000;
+
 export const {
   handlers,
   auth,
   signIn,
   signOut,
 } = NextAuth({
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SEC,
+    updateAge: SESSION_UPDATE_AGE_SEC,
+  },
   pages: {
     signIn: "/login",
   },
@@ -80,15 +91,37 @@ export const {
     }),
   ],
   callbacks: {
-    // Rol va tilni JWT tokenga yozamiz
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
         token.locale = user.locale;
+        token.checkedAt = Date.now();
+        return token;
       }
+
+      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
+      if (Date.now() - checkedAt < JWT_RECHECK_MS) {
+        return token;
+      }
+
+      const userId = typeof token.sub === "string" ? token.sub : null;
+      if (!userId) return null;
+
+      const dbUser = await db.user.findUnique({
+        where: { id: userId },
+        select: { isActive: true, role: true, locale: true },
+      });
+
+      // Bloklangan yoki o'chirilgan hisob — tokenni bekor qilamiz.
+      if (!dbUser || !dbUser.isActive) {
+        return null;
+      }
+
+      token.role = dbUser.role;
+      token.locale = dbUser.locale;
+      token.checkedAt = Date.now();
       return token;
     },
-    // Tokendan sessiyaga o'tkazamiz (klient tomon ko'radi)
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub as string;
