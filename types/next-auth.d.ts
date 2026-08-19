@@ -21,5 +21,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     role: Role;
     locale: Locale;
+    /** Oxirgi marta DB dan isActive/role tekshirilgan vaqt (ms). */
+    checkedAt?: number;
   }
 }
