@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { Role, Locale } from "@prisma/client";
 import { db } from "@/lib/db";
+import { logAudit, maskIdentifier } from "@/lib/audit";
 
 // Login formasi validatsiyasi
 const credentialsSchema = z.object({
@@ -29,7 +30,14 @@ export const {
       },
       authorize: async (raw) => {
         const parsed = credentialsSchema.safeParse(raw);
-        if (!parsed.success) return null;
+        if (!parsed.success) {
+          await logAudit({
+            action: "LOGIN_FAILED",
+            entity: "User",
+            meta: { reason: "invalid_input" },
+          });
+          return null;
+        }
 
         const { login, password } = parsed.data;
 
@@ -40,10 +48,26 @@ export const {
             OR: [{ email: login }, { phone: login }],
           },
         });
-        if (!user) return null;
+        if (!user) {
+          await logAudit({
+            action: "LOGIN_FAILED",
+            entity: "User",
+            meta: { login: maskIdentifier(login) },
+          });
+          return null;
+        }
 
         const passwordOk = await bcrypt.compare(password, user.passwordHash);
-        if (!passwordOk) return null;
+        if (!passwordOk) {
+          await logAudit({
+            userId: user.id,
+            action: "LOGIN_FAILED",
+            entity: "User",
+            entityId: user.id,
+            meta: { login: maskIdentifier(login) },
+          });
+          return null;
+        }
 
         return {
           id: user.id,
@@ -72,6 +96,32 @@ export const {
         session.user.locale = token.locale as Locale;
       }
       return session;
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      if (!user.id) return;
+      await logAudit({
+        userId: user.id,
+        action: "LOGIN",
+        entity: "User",
+        entityId: user.id,
+      });
+    },
+    async signOut(message) {
+      const userId =
+        "token" in message && typeof message.token?.sub === "string"
+          ? message.token.sub
+          : "session" in message
+            ? message.session?.user?.id ?? null
+            : null;
+
+      await logAudit({
+        userId,
+        action: "LOGOUT",
+        entity: "User",
+        entityId: userId,
+      });
     },
   },
 });
