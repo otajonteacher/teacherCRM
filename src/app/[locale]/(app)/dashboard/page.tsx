@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
+import { requireAuth } from "@/lib/auth-guard";
 import {
   Card,
   CardContent,
@@ -9,12 +9,12 @@ import {
 } from "@/components/ui/card";
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user) return null;
+  // Server tomon qorovuli — sessiya yo'q bo'lsa /login ga yo'naltiradi
+  const user = await requireAuth();
 
   const t = await getTranslations("dashboard");
   const tr = await getTranslations("roles");
-  const { name, role } = session.user;
+  const { name, role } = user;
 
   return (
     <div className="space-y-6">

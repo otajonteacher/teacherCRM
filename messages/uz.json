@@ -17,6 +17,11 @@
     "error": "Login yoki parol noto'g'ri",
     "demoTitle": "Demo hisoblar (parol: password123)"
   },
+  "forbidden": {
+    "title": "Ruxsat yo'q",
+    "description": "Bu bo'limga kirish uchun sizda yetarli huquq mavjud emas. Agar bu xato deb hisoblasangiz, administrator bilan bog'laning.",
+    "backToDashboard": "Boshqaruv paneliga qaytish"
+  },
   "roles": {
     "ADMIN": "Administrator",
     "TEACHER": "O'qituvchi",

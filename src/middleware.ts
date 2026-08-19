@@ -12,15 +12,18 @@ const handleI18n = createIntlMiddleware({
 });
 
 /**
- * Asosiy middleware:
- * 1. Agar sessiya yo'q bo'lsa → /login ga yo'naltiradi
- * 2. Agar rolga ruxsat yo'q bo'lsa → /dashboard ga qaytaradi
+ * Asosiy middleware (BIRINCHI qatlam himoya):
+ * 1. Sessiya yo'q bo'lsa → /login
+ * 2. Rolga ruxsat yo'q bo'lsa → /forbidden (403)
  * 3. next-intl til prefiksini qo'shadi
+ *
+ * MUHIM: bu faqat sahifa navigatsiyasini ushlaydi. Server Action va page.tsx
+ * uchun IKKINCHI qatlam — src/lib/auth-guard.ts (requireAuth / requireRole).
  */
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
-  // Locale prefiksini ajratib olamiz: /uz/dashboard → locale="uz", path="/dashboard"
+  // Locale prefiksini ajratamiz: /uz/dashboard → locale="uz", path="/dashboard"
   const localeMatch = pathname.match(/^\/([a-z]{2})(\/.*)?$/);
   const locale = localeMatch?.[1] ?? defaultLocale;
   const pathWithoutLocale = localeMatch?.[2] ?? "/";
@@ -28,29 +31,24 @@ export default auth((req) => {
   // Ochiq (himoyasiz) yo'llar
   const isPublic =
     pathWithoutLocale.startsWith("/login") ||
-    pathWithoutLocale === "/" ||
-    pathWithoutLocale === "";
+    pathWithoutLocale.startsWith("/forbidden") ||
+    pathWithoutLocale === "/";
 
   if (!isPublic) {
     // 1. Autentifikatsiya tekshiruvi
     if (!req.auth?.user) {
-      const loginUrl = new URL(`/${locale}/login`, req.url);
-      return NextResponse.redirect(loginUrl);
+      return NextResponse.redirect(new URL(`/${locale}/login`, req.url));
     }
 
     // 2. RBAC tekshiruvi — rolga mos yo'lmi?
     const role = req.auth.user.role;
     const allowed = roleAllowedPaths[role] ?? [];
     const canAccess = allowed.some(
-      (p) =>
-        pathWithoutLocale === p ||
-        pathWithoutLocale.startsWith(p + "/")
+      (p) => pathWithoutLocale === p || pathWithoutLocale.startsWith(p + "/")
     );
 
     if (!canAccess) {
-      // Ruxsat yo'q — dashboard ga qaytaramiz
-      const dashUrl = new URL(`/${locale}/dashboard`, req.url);
-      return NextResponse.redirect(dashUrl);
+      return NextResponse.redirect(new URL(`/${locale}/forbidden`, req.url));
     }
   }
 
