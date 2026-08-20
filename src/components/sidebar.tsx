@@ -32,38 +32,48 @@ function NavGroup({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-primary hover:bg-accent"
+        className="flex w-full items-center justify-between rounded-md bg-primary px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-primary-foreground"
         aria-expanded={open}
       >
         <span>{t(`groups.${groupKey}`)}</span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 shrink-0 transition-transform",
+            "h-4 w-4 shrink-0 transition-transform duration-200",
             !open && "-rotate-90"
           )}
         />
       </button>
-      {open &&
-        items.map(({ key, href, icon: Icon }) => {
-          const active =
-            pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <Link
-              key={key}
-              href={href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{t(key)}</span>
-            </Link>
-          );
-        })}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="flex flex-col gap-1 pt-1">
+            {items.map(({ key, href, icon: Icon }) => {
+              const active =
+                pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{t(key)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
