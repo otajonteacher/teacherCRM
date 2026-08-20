@@ -5,8 +5,11 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ActionResult } from "@/lib/safe-action";
-import { createStudent, updateStudent } from "./actions";
+import {
+  createStudent,
+  updateStudent,
+  type StudentFormState,
+} from "./actions";
 import type { StudentStatus } from "@prisma/client";
 
 type ClassOption = { id: string; name: string };
@@ -42,9 +45,9 @@ function SubmitButton({ mode }: { mode: "create" | "edit" }) {
 export function StudentForm({ mode, classes, student }: StudentFormProps) {
   const t = useTranslations("students");
   const action = mode === "create" ? createStudent : updateStudent;
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
+  const [state, formAction] = useFormState<StudentFormState, FormData>(
     action,
-    undefined
+    {}
   );
 
   return (
@@ -163,7 +166,7 @@ export function StudentForm({ mode, classes, student }: StudentFormProps) {
         </div>
       </div>
 
-      {state && !state.ok ? (
+      {state.error ? (
         <p className="text-sm font-medium text-destructive">{state.error}</p>
       ) : null}
 
