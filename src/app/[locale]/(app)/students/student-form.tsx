@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ActionResult } from "@/lib/safe-action";
-import { createStudent, updateStudent } from "../actions";
+import { createStudent, updateStudent } from "./actions";
 import type { StudentStatus } from "@prisma/client";
 
 type ClassOption = { id: string; name: string };
