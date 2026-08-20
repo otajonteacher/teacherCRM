@@ -96,20 +96,13 @@ type SafeActionOptions<TSchema extends z.ZodTypeAny, TResult> = {
   /** Bo'sh bo'lsa faqat requireAuth. Berilsa requireRole. */
   roles?: Role[];
   schema: TSchema;
-  audit?: AuditConfig<z.infer<TSchema>, TResult>;
+  /** NoInfer: TResult faqat handler qaytishidan olinadi, audit callbackdan emas. */
+  audit?: AuditConfig<z.infer<TSchema>, NoInfer<TResult>>;
   handler: (input: z.infer<TSchema>, user: SessionUser) => Promise<TResult>;
 };
 
 /**
  * Server Action yaratadi: rol → zod → handler → audit.
- *
- * @example
- * export const createStudent = createAction({
- *   roles: ["ADMIN"],
- *   schema: studentSchema,
- *   audit: { action: "CREATE", entity: "Student", entityId: (_i, r) => r.id },
- *   handler: async (input) => db.student.create({ data: input }),
- * });
  */
 export function createAction<TSchema extends z.ZodTypeAny, TResult>(
   options: SafeActionOptions<TSchema, TResult>
