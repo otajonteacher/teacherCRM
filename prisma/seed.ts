@@ -110,6 +110,78 @@ async function main() {
     console.log("✅ O'quv yili va 4 ta chorak yaratildi");
   }
 
+  const teacherUser = await db.user.findUnique({
+    where: { email: "teacher@maktab.uz" },
+  });
+  const parentUser = await db.user.findUnique({
+    where: { email: "parent@maktab.uz" },
+  });
+  if (!teacherUser || !parentUser || !year) {
+    throw new Error("Seed: foydalanuvchi yoki o'quv yili topilmadi");
+  }
+
+  const teacher = await db.teacher.upsert({
+    where: { userId: teacherUser.id },
+    update: {},
+    create: { userId: teacherUser.id },
+  });
+
+  let klass = await db.class.findFirst({ where: { name: "9-A" } });
+  if (!klass) {
+    klass = await db.class.create({
+      data: {
+        name: "9-A",
+        grade: 9,
+        academicYearId: year.id,
+        homeroomTeacherId: teacher.id,
+      },
+    });
+  }
+
+  let guardian = await db.guardian.findFirst({
+    where: { userId: parentUser.id },
+  });
+  if (!guardian) {
+    guardian = await db.guardian.create({
+      data: {
+        userId: parentUser.id,
+        fullName: parentUser.fullName,
+        phone: "+998901234567",
+        relation: "ota",
+      },
+    });
+  }
+
+  const demoStudents = [
+    {
+      firstName: "Ali",
+      lastName: "Karimov",
+      guardianId: guardian.id,
+    },
+    {
+      firstName: "Madina",
+      lastName: "Tursunova",
+      guardianId: null as string | null,
+    },
+  ];
+  for (const s of demoStudents) {
+    const exists = await db.student.findFirst({
+      where: { firstName: s.firstName, lastName: s.lastName },
+    });
+    if (!exists) {
+      await db.student.create({
+        data: {
+          firstName: s.firstName,
+          lastName: s.lastName,
+          classId: klass.id,
+          guardianId: s.guardianId,
+          status: "ACTIVE",
+        },
+      });
+    }
+  }
+  console.log("✅ Demo sinf 9-A va 2 ta o'quvchi yaratildi");
+
   console.log("🌱 Seed yakunlandi.");
 }
 
