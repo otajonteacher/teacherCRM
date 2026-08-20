@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject, type ActionResult } from "@/lib/safe-action";
-import { studentWriteSchema } from "@/lib/students";
+import { studentUpdateSchema, studentWriteSchema } from "@/lib/students";
 import { redirectNever } from "@/lib/auth-guard";
 
 function toDate(value?: string) {
@@ -68,14 +68,13 @@ const createStudentAction = createAction({
     });
     revalidatePath("/students");
     redirectNever(`/students/${student.id}`);
+    return student;
   },
 });
 
 const updateStudentAction = createAction({
   roles: ["ADMIN"],
-  schema: studentWriteSchema.extend({
-    id: studentWriteSchema.shape.firstName,
-  }),
+  schema: studentUpdateSchema,
   audit: {
     action: "UPDATE",
     entity: "Student",
@@ -95,7 +94,7 @@ const updateStudentAction = createAction({
       existingId: existing.guardianId,
     });
 
-    await db.student.update({
+    const student = await db.student.update({
       where: { id: existing.id },
       data: {
         firstName: input.firstName,
@@ -111,6 +110,7 @@ const updateStudentAction = createAction({
     revalidatePath("/students");
     revalidatePath(`/students/${existing.id}`);
     redirectNever(`/students/${existing.id}`);
+    return student;
   },
 });
 
