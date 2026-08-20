@@ -25,4 +25,8 @@ export const studentWriteSchema = z.object({
   guardianRelation: optionalText,
 });
 
+export const studentUpdateSchema = studentWriteSchema.extend({
+  id: z.preprocess(emptyToUndefined, z.string().min(1)),
+});
+
 export type StudentWriteInput = z.infer<typeof studentWriteSchema>;
