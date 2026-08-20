@@ -59,12 +59,21 @@
     "ranking": "Reyting",
     "penalties": "Jarima balllar",
     "penaltyCriteria": "Jarima mezonlari",
+    "rewards": "Rag'bat ballar",
+    "rewardCriteria": "Rag'bat mezonlari",
     "payments": "To'lovlar",
     "reports": "Hisobotlar",
     "messages": "SMS xabarlar",
     "tests": "Testlar",
     "users": "Foydalanuvchilar",
-    "aiAssistant": "AI yordamchi"
+    "aiAssistant": "AI yordamchi",
+    "groups": {
+      "overview": "Boshqaruv",
+      "academic": "O'quv jarayoni",
+      "discipline": "Intizom",
+      "finance": "Moliya",
+      "system": "Aloqa va tizim"
+    }
   },
   "dashboard": {
     "welcome": "Xush kelibsiz",
