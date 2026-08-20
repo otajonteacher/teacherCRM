@@ -59,12 +59,21 @@
     "ranking": "Ranking",
     "penalties": "Penalty points",
     "penaltyCriteria": "Penalty criteria",
+    "rewards": "Reward points",
+    "rewardCriteria": "Reward criteria",
     "payments": "Payments",
     "reports": "Reports",
     "messages": "SMS messages",
     "tests": "Tests",
     "users": "Users",
-    "aiAssistant": "AI assistant"
+    "aiAssistant": "AI assistant",
+    "groups": {
+      "overview": "Overview",
+      "academic": "Academics",
+      "discipline": "Discipline",
+      "finance": "Finance",
+      "system": "Comms & system"
+    }
   },
   "dashboard": {
     "welcome": "Welcome",

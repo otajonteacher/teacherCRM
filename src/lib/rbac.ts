@@ -29,8 +29,6 @@ export function homePathForRole(_role: Role): string {
  * mumkin" degan savol — alohida masala (IDOR himoyasi, keyingi bosqich).
  */
 export const roleAllowedPaths: Record<Role, string[]> = {
-  // Admin — hamma sahifaga kirish. Pastdagi isPathAllowed'da qo'shimcha
-  // himoya bor: ADMIN ro'yxatdan qat'i nazar hamma joyga kiradi.
   ADMIN: [
     "/dashboard",
     "/students",
@@ -42,6 +40,8 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/ranking",
     "/penalties",
     "/penalty-criteria",
+    "/rewards",
+    "/reward-criteria",
     "/payments",
     "/reports",
     "/messages",
@@ -50,7 +50,6 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/ai-assistant",
   ],
 
-  // O'qituvchi — o'quv jarayoni + AI yordamchi (TZ 15-bosqich)
   TEACHER: [
     "/dashboard",
     "/students",
@@ -60,11 +59,11 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/grades",
     "/ranking",
     "/penalties",
+    "/rewards",
     "/tests",
     "/ai-assistant",
   ],
 
-  // Buxgalter — moliya + to'lov eslatmalarini SMS qilish uchun /messages
   ACCOUNTANT: [
     "/dashboard",
     "/students",
@@ -73,13 +72,13 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/messages",
   ],
 
-  // Ota-ona / O'quvchi — o'z farzandining jarima ballarini ham ko'radi
   PARENT: [
     "/dashboard",
     "/grades",
     "/attendance",
     "/ranking",
     "/penalties",
+    "/rewards",
     "/payments",
   ],
 };
@@ -96,8 +95,6 @@ export const roleAllowedPaths: Record<Role, string[]> = {
 export function isPathAllowed(role: Role | undefined, path: string): boolean {
   if (!role) return false;
 
-  // Bosh administrator — ta'rifi bo'yicha barcha sahifalarga kirish huquqiga ega.
-  // Yangi sahifa qo'shilib, ro'yxatni yangilash esdan chiqsa ham ADMIN bloklanmaydi.
   if (role === "ADMIN") return true;
 
   const allowed = roleAllowedPaths[role] ?? [];
