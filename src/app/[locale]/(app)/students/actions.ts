@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { createAction, formDataToObject, type ActionResult } from "@/lib/safe-action";
+import { createAction, formDataToObject } from "@/lib/safe-action";
 import { studentUpdateSchema, studentWriteSchema } from "@/lib/students";
 import { redirectNever } from "@/lib/auth-guard";
+
+export type StudentFormState = { error?: string };
 
 function toDate(value?: string) {
   if (!value) return undefined;
@@ -47,12 +49,7 @@ async function upsertGuardian(input: {
 const createStudentAction = createAction({
   roles: ["ADMIN"],
   schema: studentWriteSchema,
-  audit: {
-    action: "CREATE",
-    entity: "Student",
-    entityId: (_input, result) => result.id,
-  },
-  handler: async (input) => {
+  handler: async (input): Promise<{ id: string }> => {
     const guardianId = await upsertGuardian(input);
     const student = await db.student.create({
       data: {
@@ -70,17 +67,17 @@ const createStudentAction = createAction({
     revalidatePath("/students");
     return { id: student.id };
   },
+  audit: {
+    action: "CREATE",
+    entity: "Student",
+    entityId: (_input, result) => result.id,
+  },
 });
 
 const updateStudentAction = createAction({
   roles: ["ADMIN"],
   schema: studentUpdateSchema,
-  audit: {
-    action: "UPDATE",
-    entity: "Student",
-    entityId: (input) => input.id,
-  },
-  handler: async (input) => {
+  handler: async (input): Promise<{ id: string }> => {
     const existing = await db.student.findUnique({
       where: { id: input.id },
       select: { id: true, guardianId: true },
@@ -111,26 +108,27 @@ const updateStudentAction = createAction({
     revalidatePath(`/students/${existing.id}`);
     return { id: existing.id };
   },
+  audit: {
+    action: "UPDATE",
+    entity: "Student",
+    entityId: (input) => input.id,
+  },
 });
 
 export async function createStudent(
-  _prev: ActionResult<{ id: string }> | undefined,
+  _prev: StudentFormState,
   formData: FormData
-): Promise<ActionResult<{ id: string }>> {
+): Promise<StudentFormState> {
   const result = await createStudentAction(formDataToObject(formData));
-  if (result.ok) {
-    redirectNever(`/students/${result.data.id}`);
-  }
-  return result;
+  if (!result.ok) return { error: result.error };
+  redirectNever(`/students/${result.data.id}`);
 }
 
 export async function updateStudent(
-  _prev: ActionResult<{ id: string }> | undefined,
+  _prev: StudentFormState,
   formData: FormData
-): Promise<ActionResult<{ id: string }>> {
+): Promise<StudentFormState> {
   const result = await updateStudentAction(formDataToObject(formData));
-  if (result.ok) {
-    redirectNever(`/students/${result.data.id}`);
-  }
-  return result;
+  if (!result.ok) return { error: result.error };
+  redirectNever(`/students/${result.data.id}`);
 }
