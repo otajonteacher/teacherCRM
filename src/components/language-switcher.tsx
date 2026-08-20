@@ -15,8 +15,7 @@ export function LanguageSwitcher() {
 
   function onChange(next: AppLocale) {
     startTransition(() => {
-      // Joriy sahifada qolgan holda tilni almashtiramiz
-      router.replace(pathname, { locale: next });
+      router.replace(pathname, { locale: next, scroll: false });
     });
   }
 
