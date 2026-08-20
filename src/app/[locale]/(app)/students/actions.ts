@@ -65,10 +65,10 @@ const createStudentAction = createAction({
         status: input.status,
         guardianId,
       },
+      select: { id: true },
     });
     revalidatePath("/students");
-    redirectNever(`/students/${student.id}`);
-    return student;
+    return { id: student.id };
   },
 });
 
@@ -94,7 +94,7 @@ const updateStudentAction = createAction({
       existingId: existing.guardianId,
     });
 
-    const student = await db.student.update({
+    await db.student.update({
       where: { id: existing.id },
       data: {
         firstName: input.firstName,
@@ -109,21 +109,28 @@ const updateStudentAction = createAction({
     });
     revalidatePath("/students");
     revalidatePath(`/students/${existing.id}`);
-    redirectNever(`/students/${existing.id}`);
-    return student;
+    return { id: existing.id };
   },
 });
 
 export async function createStudent(
-  _prev: ActionResult | undefined,
+  _prev: ActionResult<{ id: string }> | undefined,
   formData: FormData
-): Promise<ActionResult> {
-  return createStudentAction(formDataToObject(formData));
+): Promise<ActionResult<{ id: string }>> {
+  const result = await createStudentAction(formDataToObject(formData));
+  if (result.ok) {
+    redirectNever(`/students/${result.data.id}`);
+  }
+  return result;
 }
 
 export async function updateStudent(
-  _prev: ActionResult | undefined,
+  _prev: ActionResult<{ id: string }> | undefined,
   formData: FormData
-): Promise<ActionResult> {
-  return updateStudentAction(formDataToObject(formData));
+): Promise<ActionResult<{ id: string }>> {
+  const result = await updateStudentAction(formDataToObject(formData));
+  if (result.ok) {
+    redirectNever(`/students/${result.data.id}`);
+  }
+  return result;
 }
