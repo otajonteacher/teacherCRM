@@ -59,12 +59,21 @@
     "ranking": "Рейтинг",
     "penalties": "Штрафные баллы",
     "penaltyCriteria": "Критерии штрафов",
+    "rewards": "Поощрительные баллы",
+    "rewardCriteria": "Критерии поощрений",
     "payments": "Платежи",
     "reports": "Отчёты",
     "messages": "SMS сообщения",
     "tests": "Тесты",
     "users": "Пользователи",
-    "aiAssistant": "AI помощник"
+    "aiAssistant": "AI помощник",
+    "groups": {
+      "overview": "Управление",
+      "academic": "Учебный процесс",
+      "discipline": "Дисциплина",
+      "finance": "Финансы",
+      "system": "Связь и система"
+    }
   },
   "dashboard": {
     "welcome": "Добро пожаловать",
