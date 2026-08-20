@@ -9,6 +9,8 @@ import {
   Trophy,
   AlertTriangle,
   SlidersHorizontal,
+  Award,
+  Medal,
   Wallet,
   BarChart3,
   MessageSquare,
@@ -20,8 +22,8 @@ import {
 import type { Role } from "@prisma/client";
 
 export type NavItem = { key: string; href: string; icon: LucideIcon };
+export type NavGroup = { groupKey: string; items: NavItem[] };
 
-// Umumiy elementlar (bir necha rolda takrorlanadi)
 const item = {
   dashboard: { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
   students: { key: "students", href: "/students", icon: Users },
@@ -37,6 +39,12 @@ const item = {
     href: "/penalty-criteria",
     icon: SlidersHorizontal,
   },
+  rewards: { key: "rewards", href: "/rewards", icon: Award },
+  rewardCriteria: {
+    key: "rewardCriteria",
+    href: "/reward-criteria",
+    icon: Medal,
+  },
   payments: { key: "payments", href: "/payments", icon: Wallet },
   reports: { key: "reports", href: "/reports", icon: BarChart3 },
   messages: { key: "messages", href: "/messages", icon: MessageSquare },
@@ -45,51 +53,80 @@ const item = {
   users: { key: "users", href: "/users", icon: UserCog },
 } satisfies Record<string, NavItem>;
 
-// TZ 2.1-bo'limidagi ruxsat matritsasi asosida rol menyusi.
-export const navByRole: Record<Role, NavItem[]> = {
+export const navGroupsByRole: Record<Role, NavGroup[]> = {
   ADMIN: [
-    item.dashboard,
-    item.students,
-    item.teachers,
-    item.classes,
-    item.schedule,
-    item.attendance,
-    item.grades,
-    item.ranking,
-    item.penalties,
-    item.penaltyCriteria,
-    item.payments,
-    item.reports,
-    item.messages,
-    item.tests,
-    item.aiAssistant,
-    item.users,
+    { groupKey: "overview", items: [item.dashboard] },
+    {
+      groupKey: "academic",
+      items: [
+        item.students,
+        item.teachers,
+        item.classes,
+        item.schedule,
+        item.attendance,
+        item.grades,
+        item.ranking,
+        item.tests,
+      ],
+    },
+    {
+      groupKey: "discipline",
+      items: [
+        item.penalties,
+        item.penaltyCriteria,
+        item.rewards,
+        item.rewardCriteria,
+      ],
+    },
+    { groupKey: "finance", items: [item.payments, item.reports] },
+    {
+      groupKey: "system",
+      items: [item.messages, item.aiAssistant, item.users],
+    },
   ],
   TEACHER: [
-    item.dashboard,
-    item.students,
-    item.classes,
-    item.schedule,
-    item.attendance,
-    item.grades,
-    item.ranking,
-    item.penalties,
-    item.tests,
-    item.aiAssistant,
+    { groupKey: "overview", items: [item.dashboard] },
+    {
+      groupKey: "academic",
+      items: [
+        item.students,
+        item.classes,
+        item.schedule,
+        item.attendance,
+        item.grades,
+        item.ranking,
+        item.tests,
+      ],
+    },
+    {
+      groupKey: "discipline",
+      items: [item.penalties, item.rewards],
+    },
+    { groupKey: "system", items: [item.aiAssistant] },
   ],
   ACCOUNTANT: [
-    item.dashboard,
-    item.students,
-    item.payments,
-    item.reports,
-    item.messages,
+    { groupKey: "overview", items: [item.dashboard] },
+    { groupKey: "academic", items: [item.students] },
+    { groupKey: "finance", items: [item.payments, item.reports] },
+    { groupKey: "system", items: [item.messages] },
   ],
   PARENT: [
-    item.dashboard,
-    item.grades,
-    item.attendance,
-    item.ranking,
-    item.penalties,
-    item.payments,
+    { groupKey: "overview", items: [item.dashboard] },
+    {
+      groupKey: "academic",
+      items: [item.grades, item.attendance, item.ranking],
+    },
+    {
+      groupKey: "discipline",
+      items: [item.penalties, item.rewards],
+    },
+    { groupKey: "finance", items: [item.payments] },
   ],
+};
+
+export const navByRole: Record<Role, NavItem[]> = {
+  ADMIN: navGroupsByRole.ADMIN.flatMap((group) => group.items),
+  TEACHER: navGroupsByRole.TEACHER.flatMap((group) => group.items),
+  ACCOUNTANT: navGroupsByRole.ACCOUNTANT.flatMap((group) => group.items),
+  PARENT: navGroupsByRole.PARENT.flatMap((group) => group.items),
 };
