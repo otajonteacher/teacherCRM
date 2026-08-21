@@ -95,6 +95,7 @@
     "filters": "Filtr",
     "filtersHint": "Ism, holat yoki sinf bo'yicha qidiring.",
     "search": "Qidirish",
+    "clearFilters": "Tozalash",
     "searchPlaceholder": "Ism yoki familiya",
     "empty": "O'quvchi topilmadi.",
     "name": "F.I.Sh.",
