@@ -16,19 +16,26 @@ import type { ImportOutcome, PreviewResult } from "@/lib/imports";
  *
  * Server action'lar prop sifatida keladi — shu tufayli bitta UI ikki
  * bo'limga xizmat qiladi.
+ *
+ * TRow — qator tipi (StudentCommitRow yoki TeacherCommitRow). Komponent
+ * generic: aks holda o'quvchi/o'qituvchi action'larining aniq tiplari
+ * `PreviewResult<unknown>` bilan mos kelmaydi.
  */
 
-type PreviewState =
-  | { ok: true; data: PreviewResult<unknown> }
+type PreviewState<TRow> =
+  | { ok: true; data: PreviewResult<TRow> }
   | { ok: false; error: string };
 
 type CommitState = { ok: true; data: ImportOutcome } | { ok: false; error: string };
 
-export type ImportWizardProps = {
+export type ImportWizardProps<TRow> = {
   templateHref: string;
   listHref: string;
   templateColumns: string[];
-  preview: (prev: PreviewState | null, formData: FormData) => Promise<PreviewState>;
+  preview: (
+    prev: PreviewState<TRow> | null,
+    formData: FormData
+  ) => Promise<PreviewState<TRow>>;
   commit: (payload: unknown) => Promise<CommitState>;
 };
 
@@ -58,15 +65,15 @@ function downloadCsv(fileName: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export function ImportWizard({
+export function ImportWizard<TRow>({
   templateHref,
   listHref,
   templateColumns,
   preview,
   commit,
-}: ImportWizardProps) {
+}: ImportWizardProps<TRow>) {
   const t = useTranslations("import");
-  const [state, setState] = useState<PreviewState | null>(null);
+  const [state, setState] = useState<PreviewState<TRow> | null>(null);
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [mode, setMode] = useState<"skip" | "update">("skip");
