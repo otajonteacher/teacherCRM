@@ -95,6 +95,7 @@
     "filters": "Filter",
     "filtersHint": "Search by name, status, or class.",
     "search": "Search",
+    "clearFilters": "Clear",
     "searchPlaceholder": "First or last name",
     "empty": "No students found.",
     "name": "Name",
