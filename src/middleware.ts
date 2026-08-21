@@ -10,6 +10,20 @@ const handleI18n = createIntlMiddleware({
   localePrefix: "always",
 });
 
+function splitLocale(pathname: string): {
+  locale: string;
+  pathWithoutLocale: string;
+} {
+  const match = locales.find(
+    (loc) => pathname === `/${loc}` || pathname.startsWith(`/${loc}/`)
+  );
+  if (!match) {
+    return { locale: defaultLocale, pathWithoutLocale: pathname || "/" };
+  }
+  const rest = pathname.slice(match.length + 1);
+  return { locale: match, pathWithoutLocale: rest === "" ? "/" : rest };
+}
+
 /**
  * Asosiy middleware (BIRINCHI qatlam himoya):
  * 1. Sessiya yo'q bo'lsa → /login
@@ -19,10 +33,7 @@ const handleI18n = createIntlMiddleware({
  */
 export default auth((req) => {
   const { pathname } = req.nextUrl;
-
-  const localeMatch = pathname.match(/^\/([a-z]{2})(\/.*)?$/);
-  const locale = localeMatch?.[1] ?? defaultLocale;
-  const pathWithoutLocale = localeMatch?.[2] ?? "/";
+  const { locale, pathWithoutLocale } = splitLocale(pathname);
 
   const isLogin = pathWithoutLocale.startsWith("/login");
   const isForbidden = pathWithoutLocale.startsWith("/forbidden");
