@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Role, Locale } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logAudit, maskIdentifier } from "@/lib/audit";
+import { logError } from "@/lib/logger";
 import {
   clearLoginFailures,
   getRequestIp,
@@ -24,6 +25,8 @@ const SESSION_MAX_AGE_SEC = 8 * 60 * 60;
 const SESSION_UPDATE_AGE_SEC = 60 * 60;
 /** DB dan isActive/role qayta o'qish oralig'i: 5 daqiqa. */
 const JWT_RECHECK_MS = 5 * 60 * 1000;
+/** Baza uzluksiz javob bermasa, sessiyani shu muddatdan keyin bekor qilamiz. */
+const RECHECK_GRACE_MS = 30 * 60 * 1000;
 
 export const {
   handlers,
@@ -131,15 +134,39 @@ export const {
       const userId = typeof token.sub === "string" ? token.sub : null;
       if (!userId) return null;
 
-      const dbUser = await db.user.findUnique({
-        where: { id: userId },
-        select: {
-          isActive: true,
-          role: true,
-          locale: true,
-          mustChangePassword: true,
-        },
-      });
+      /*
+       * MUHIM: bu yerda `null` qaytarish = foydalanuvchini tizimdan chiqarish.
+       * Shu sababli faqat ANIQ sabab bo'lganda (hisob yo'q yoki o'chirilgan)
+       * null qaytaramiz. Baza vaqtincha javob bermasa (dev serverda sovuq
+       * start, ulanish uzilishi) sessiyani buzmaymiz — aks holda ishlayotgan
+       * admin kutilmaganda login sahifasiga uchib ketadi.
+       */
+      let dbUser: {
+        isActive: boolean;
+        role: Role;
+        locale: Locale;
+        mustChangePassword: boolean;
+      } | null = null;
+
+      try {
+        dbUser = await db.user.findUnique({
+          where: { id: userId },
+          select: {
+            isActive: true,
+            role: true,
+            locale: true,
+            mustChangePassword: true,
+          },
+        });
+      } catch (error) {
+        logError("auth.jwt_recheck_failed", error);
+
+        // Grace davri ichida eski token bilan davom etamiz.
+        if (Date.now() - checkedAt < RECHECK_GRACE_MS) {
+          return token;
+        }
+        return null;
+      }
 
       if (!dbUser || !dbUser.isActive) {
         return null;
