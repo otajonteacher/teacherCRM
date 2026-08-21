@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Role, Locale } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logAudit, maskIdentifier } from "@/lib/audit";
-import { logger } from "@/lib/logger";
+import { logError } from "@/lib/logger";
 import {
   clearLoginFailures,
   getRequestIp,
@@ -159,7 +159,7 @@ export const {
           },
         });
       } catch (error) {
-        logger.error("jwt.recheck_failed", error);
+        logError("auth.jwt_recheck_failed", error);
 
         // Grace davri ichida eski token bilan davom etamiz.
         if (Date.now() - checkedAt < RECHECK_GRACE_MS) {
