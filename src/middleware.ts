@@ -1,8 +1,24 @@
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
 import createIntlMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
+import { authConfig } from "./auth.config";
 import { locales, defaultLocale } from "./i18n/config";
 import { isPathAllowed } from "./lib/rbac";
+
+/**
+ * MUHIM: bu yerda `@/auth` EMAS, `./auth.config` ishlatiladi.
+ *
+ * Middleware Edge runtime'da ishlaydi — u yerda Prisma ishlamaydi.
+ * Ilgari middleware to'liq `@/auth` ni import qilgani uchun, undagi
+ * `jwt` callback bazaga murojaat qilib xatoga uchrardi va sessiya
+ * yaroqsiz deb hisoblanardi. Natijada foydalanuvchi hech qanday sababsiz
+ * login sahifasiga otib yuborilardi.
+ *
+ * Endi middleware faqat cookie'dagi tokenni o'qiydi (bazasiz), hisobning
+ * faol-nofaolligi esa sahifalar/action'lar tomonida (Node runtime)
+ * tekshiriladi — `src/auth.ts`.
+ */
+const { auth } = NextAuth(authConfig);
 
 const handleI18n = createIntlMiddleware({
   locales,
