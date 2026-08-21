@@ -95,6 +95,7 @@
     "filters": "Фильтр",
     "filtersHint": "Ищите по имени, статусу или классу.",
     "search": "Найти",
+    "clearFilters": "Сбросить",
     "searchPlaceholder": "Имя или фамилия",
     "empty": "Ученик не найден.",
     "name": "ФИО",
