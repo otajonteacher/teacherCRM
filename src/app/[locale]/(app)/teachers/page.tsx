@@ -23,6 +23,7 @@ export default async function TeachersPage({
 }) {
   await requireAdmin();
   const t = await getTranslations("teachers");
+  const tImport = await getTranslations("import");
 
   const q = searchParams.q?.trim() ?? "";
   const subjectId = searchParams.subjectId?.trim() || undefined;
@@ -74,9 +75,14 @@ export default async function TeachersPage({
           <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{t("subtitle")}</p>
         </div>
-        <Button asChild>
-          <Link href="/teachers/new">{t("add")}</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/teachers/import">{tImport("action")}</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/teachers/new">{t("add")}</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
