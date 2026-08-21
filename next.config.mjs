@@ -44,6 +44,17 @@ if (!isDev) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    /*
+     * Excel import Server Action orqali fayl yuboradi. Next.js standart
+     * chegarasi 1 MB — undan katta fayl kodimizga yetib ham bormay xato
+     * beradi. `src/lib/excel.ts` da chegara 5 MB, shuning uchun bu yerda
+     * ozgina zaxira bilan 6 MB qo'yamiz (multipart qo'shimchalari uchun).
+     */
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
+  },
   async headers() {
     return [
       {
