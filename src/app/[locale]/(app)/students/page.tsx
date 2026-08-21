@@ -103,9 +103,14 @@ export default async function StudentsPage({
                 </option>
               ))}
             </select>
-            <Button type="submit" variant="secondary">
-              {t("search")}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" variant="secondary" className="flex-1">
+                {t("search")}
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/students">{t("clearFilters")}</Link>
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
