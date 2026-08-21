@@ -35,9 +35,7 @@ async function main() {
       update: {
         fullName: u.fullName,
         role: u.role,
-        passwordHash,
         isActive: true,
-        mustChangePassword: false,
       },
       create: {
         email: u.email,
@@ -48,7 +46,9 @@ async function main() {
       },
     });
   }
-  console.log(`✅ ${users.length} ta foydalanuvchi yaratildi (parol: SEED_PASSWORD)`);
+  console.log(
+    `✅ ${users.length} ta foydalanuvchi. Yangi hisob paroli: SEED_PASSWORD. Mavjud hisob paroli o'zgarmaydi.`
+  );
 
   const subjects = [
     { nameUz: "Matematika", nameRu: "Математика", nameEn: "Mathematics" },
