@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { Role, Locale } from "@prisma/client";
+import { authConfig } from "@/auth.config";
 import { db } from "@/lib/db";
 import { logAudit, maskIdentifier } from "@/lib/audit";
 import { logError } from "@/lib/logger";
@@ -13,20 +14,36 @@ import {
   recordLoginFailure,
 } from "@/lib/rate-limit";
 
+/**
+ * TO'LIQ AUTH (faqat Node runtime: sahifalar, server action'lar, API)
+ * ==================================================================
+ * Middleware bu faylni ISHLATMAYDI — u `auth.config.ts` dan foydalanadi,
+ * chunki edge runtime'da Prisma va bcrypt ishlamaydi. Tafsilotlar shu
+ * fayl izohida.
+ */
+
 // Login formasi validatsiyasi
 const credentialsSchema = z.object({
   login: z.string().min(1),
   password: z.string().min(1),
 });
 
-/** Sessiya umri: 8 soat. Standart 30 kun emas — ishdan bo'shatilgan o'qituvchi uzoq qolmasin. */
-const SESSION_MAX_AGE_SEC = 8 * 60 * 60;
-/** Token yangilanish oralig'i: 1 soat. */
-const SESSION_UPDATE_AGE_SEC = 60 * 60;
-/** DB dan isActive/role qayta o'qish oralig'i: 5 daqiqa. */
-const JWT_RECHECK_MS = 5 * 60 * 1000;
+/**
+ * DB dan isActive/role qayta o'qish oralig'i: 30 daqiqa.
+ *
+ * Bu "bloklash qancha vaqtda kuchga kiradi" degan savolning javobi.
+ * JWT sessiyasi o'zi-o'zicha yashaydi (serverda saqlanmaydi), shuning
+ * uchun hisobni o'chirganda tokendan darhol xabar bormaydi — aynan shu
+ * davriy tekshiruv bloklashni ishlatadi.
+ *
+ * Oraliqni juda uzoq qilish (masalan 6 soat) bloklashni amalda
+ * foydasiz qiladi: sessiya umri 8 soat, ya'ni bo'shatilgan o'qituvchi
+ * ish kunining oxirigacha tizimda qolaverardi.
+ */
+const JWT_RECHECK_MS = 30 * 60 * 1000;
+
 /** Baza uzluksiz javob bermasa, sessiyani shu muddatdan keyin bekor qilamiz. */
-const RECHECK_GRACE_MS = 30 * 60 * 1000;
+const RECHECK_GRACE_MS = 2 * 60 * 60 * 1000;
 
 export const {
   handlers,
@@ -34,14 +51,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
-  session: {
-    strategy: "jwt",
-    maxAge: SESSION_MAX_AGE_SEC,
-    updateAge: SESSION_UPDATE_AGE_SEC,
-  },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -117,6 +127,7 @@ export const {
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
@@ -132,14 +143,15 @@ export const {
       }
 
       const userId = typeof token.sub === "string" ? token.sub : null;
-      if (!userId) return null;
+      if (!userId) {
+        logError("auth.session_invalidated", new Error("token.sub yo'q"));
+        return null;
+      }
 
       /*
        * MUHIM: bu yerda `null` qaytarish = foydalanuvchini tizimdan chiqarish.
        * Shu sababli faqat ANIQ sabab bo'lganda (hisob yo'q yoki o'chirilgan)
-       * null qaytaramiz. Baza vaqtincha javob bermasa (dev serverda sovuq
-       * start, ulanish uzilishi) sessiyani buzmaymiz — aks holda ishlayotgan
-       * admin kutilmaganda login sahifasiga uchib ketadi.
+       * null qaytaramiz. Baza vaqtincha javob bermasa sessiyani buzmaymiz.
        */
       let dbUser: {
         isActive: boolean;
@@ -165,10 +177,18 @@ export const {
         if (Date.now() - checkedAt < RECHECK_GRACE_MS) {
           return token;
         }
+        logError("auth.session_invalidated", new Error("grace davri tugadi"));
         return null;
       }
 
-      if (!dbUser || !dbUser.isActive) {
+      if (!dbUser) {
+        // Masalan baza qayta seed qilingan — eski token endi hech kimga tegishli emas.
+        logError("auth.session_invalidated", new Error("hisob topilmadi"));
+        return null;
+      }
+
+      if (!dbUser.isActive) {
+        logError("auth.session_invalidated", new Error("hisob bloklangan"));
         return null;
       }
 
@@ -177,15 +197,6 @@ export const {
       token.mustChangePassword = dbUser.mustChangePassword;
       token.checkedAt = Date.now();
       return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub as string;
-        session.user.role = token.role as Role;
-        session.user.locale = token.locale as Locale;
-        session.user.mustChangePassword = token.mustChangePassword === true;
-      }
-      return session;
     },
   },
   events: {
