@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { createAction } from "@/lib/safe-action";
+import { checkImportHeaders } from "@/lib/import-guards";
 import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
@@ -13,6 +14,7 @@ import {
   parseExcel,
 } from "@/lib/excel";
 import {
+  STUDENT_TEMPLATE_HEADERS,
   TEACHER_COLUMNS,
   findUnknownColumns,
   generateInitialPassword,
@@ -131,6 +133,18 @@ export async function previewTeacherImport(
       ok: false,
       error: `Bir faylda ${MAX_IMPORT_ROWS} qatorgacha bo'lishi mumkin. Faylni bo'laklab yuklang.`,
     };
+  }
+
+  // Sarlavhalar mos kelmasa qatorlarni tekshirishning ma'nosi yo'q — barchasi
+  // "F.I.Sh. bo'sh" bo'lib chiqadi va sabab noma'lum ko'rinadi.
+  const headerError = checkImportHeaders({
+    headers: parsed.headers,
+    columns: TEACHER_COLUMNS,
+    otherTemplateHeaders: STUDENT_TEMPLATE_HEADERS,
+    otherTemplateName: "o'quvchilar",
+  });
+  if (headerError) {
+    return { ok: false, error: headerError };
   }
 
   const [subjectMap, identities] = await Promise.all([
