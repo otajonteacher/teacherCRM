@@ -25,6 +25,8 @@ export default async function SchedulePage({
     classId?: string;
     teacherId?: string;
     edit?: string;
+    day?: string;
+    period?: string;
     error?: string;
   };
 }) {
@@ -91,7 +93,32 @@ export default async function SchedulePage({
     label: `${period.index}. ${period.startTime}–${period.endTime}`,
   }));
 
-  const cancelHref = classId ? `/schedule?classId=${classId}` : "/schedule";
+  /**
+   * Havolalarda joriy filtrlar saqlanib qolishi kerak — aks holda "+" yoki
+   * "Tahrirlash" bosilganda foydalanuvchi tanlagan sinf/o'qituvchi yo'qoladi.
+   */
+  const hrefWith = (extra: Record<string, string> = {}) => {
+    const params = new URLSearchParams();
+    if (classId) params.set("classId", classId);
+    if (teacherId) params.set("teacherId", teacherId);
+    Object.entries(extra).forEach(([key, value]) => params.set(key, value));
+    const query = params.toString();
+    return query === "" ? "/schedule" : `/schedule?${query}`;
+  };
+
+  const cancelHref = hrefWith();
+
+  // "+" bosilganda kun va dars vaqti oldindan to'ldirilgan holda forma ochiladi.
+  // DAYS — readonly tuple (1|2|...|6), shuning uchun includes() emas, some().
+  const requestedDay = Number(searchParams.day);
+  const defaultDay = DAYS.some((day) => day === requestedDay)
+    ? requestedDay
+    : undefined;
+  const requestedPeriod = searchParams.period?.trim() || undefined;
+  const defaultPeriodId = periods.some((period) => period.id === requestedPeriod)
+    ? requestedPeriod
+    : undefined;
+
   const cellLessons = (day: number, periodId: string) =>
     lessons.filter(
       (lesson) => lesson.dayOfWeek === day && lesson.periodId === periodId
@@ -197,52 +224,70 @@ export default async function SchedulePage({
                         const items = cellLessons(day, period.id);
                         return (
                           <td key={day} className="px-3 py-3">
-                            {items.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : (
-                              <div className="space-y-2">
-                                {items.map((lesson) => (
-                                  <div
-                                    key={lesson.id}
-                                    className="rounded-md border bg-card px-2 py-1.5"
-                                  >
-                                    <p className="font-medium">
-                                      {lesson.subject.nameUz}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {lesson.class.name} ·{" "}
-                                      {lesson.teacher.user.fullName}
-                                      {lesson.room ? ` · ${lesson.room}` : ""}
-                                    </p>
-                                    {canWrite ? (
-                                      <div className="mt-1 flex items-center gap-2 text-xs">
-                                        <Link
-                                          href={`/schedule?${
-                                            classId ? `classId=${classId}&` : ""
-                                          }edit=${lesson.id}`}
-                                          className="text-primary hover:underline"
+                            <div className="space-y-2">
+                              {items.map((lesson) => (
+                                <div
+                                  key={lesson.id}
+                                  className="rounded-md border bg-card px-2 py-1.5"
+                                >
+                                  <p className="font-medium">
+                                    {lesson.subject.nameUz}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {lesson.class.name} ·{" "}
+                                    {lesson.teacher.user.fullName}
+                                    {lesson.room ? ` · ${lesson.room}` : ""}
+                                  </p>
+                                  {canWrite ? (
+                                    <div className="mt-1 flex items-center gap-2 text-xs">
+                                      <Link
+                                        href={`${hrefWith({
+                                          edit: lesson.id,
+                                        })}#lesson-form`}
+                                        className="text-primary hover:underline"
+                                      >
+                                        {t("edit")}
+                                      </Link>
+                                      <form action={deleteLesson}>
+                                        <input
+                                          type="hidden"
+                                          name="id"
+                                          value={lesson.id}
+                                        />
+                                        <button
+                                          type="submit"
+                                          className="text-destructive hover:underline"
                                         >
-                                          {t("edit")}
-                                        </Link>
-                                        <form action={deleteLesson}>
-                                          <input
-                                            type="hidden"
-                                            name="id"
-                                            value={lesson.id}
-                                          />
-                                          <button
-                                            type="submit"
-                                            className="text-destructive hover:underline"
-                                          >
-                                            {t("delete")}
-                                          </button>
-                                        </form>
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                                          {t("delete")}
+                                        </button>
+                                      </form>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+
+                              {/* Uyaga to'g'ridan-to'g'ri dars qo'shish: kun va
+                                  dars vaqti formada avtomatik tanlangan bo'ladi. */}
+                              {canWrite && subjectOptions.length > 0 ? (
+                                <Link
+                                  href={`${hrefWith({
+                                    day: String(day),
+                                    period: period.id,
+                                  })}#lesson-form`}
+                                  title={t("formTitle")}
+                                  aria-label={t("formTitle")}
+                                  className="flex h-8 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                                >
+                                  +
+                                </Link>
+                              ) : null}
+
+                              {items.length === 0 && !canWrite ? (
+                                <span className="text-xs text-muted-foreground">
+                                  —
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
                         );
                       })}
@@ -256,7 +301,7 @@ export default async function SchedulePage({
       )}
 
       {canWrite && periods.length > 0 ? (
-        <Card>
+        <Card id="lesson-form" className="scroll-mt-6">
           <CardHeader>
             <CardTitle className="text-lg">
               {editing ? t("editing") : t("formTitle")}
@@ -268,13 +313,21 @@ export default async function SchedulePage({
               <p className="text-sm text-muted-foreground">{t("noSubjects")}</p>
             ) : (
               <LessonForm
-                key={editing?.id ?? "create"}
+                key={
+                  editing
+                    ? `edit-${editing.id}`
+                    : `create-${defaultDay ?? ""}-${defaultPeriodId ?? ""}`
+                }
                 mode={editing ? "edit" : "create"}
                 classes={classOptions}
                 subjects={subjectOptions}
                 teachers={teacherOptions}
                 periods={periodOptions}
-                defaults={{ classId }}
+                defaults={{
+                  classId,
+                  dayOfWeek: defaultDay,
+                  periodId: defaultPeriodId,
+                }}
                 cancelHref={cancelHref}
                 lesson={
                   editing

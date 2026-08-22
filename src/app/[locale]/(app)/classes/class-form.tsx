@@ -15,6 +15,8 @@ type ClassFormProps = {
   mode: "create" | "edit";
   academicYears: Option[];
   teachers: Option[];
+  /** Yangi sinfda oldindan tanlanadigan o'quv yili (joriy yil). */
+  defaultAcademicYearId?: string | null;
   klass?: {
     id: string;
     name: string;
@@ -38,9 +40,11 @@ export function ClassForm({
   mode,
   academicYears,
   teachers,
+  defaultAcademicYearId,
   klass,
 }: ClassFormProps) {
   const t = useTranslations("classes");
+  const tYears = useTranslations("academicYears");
   const action = mode === "create" ? createClass : updateClass;
   const [state, formAction] = useFormState<ClassFormState, FormData>(action, {});
 
@@ -88,7 +92,9 @@ export function ClassForm({
           <select
             id="academicYearId"
             name="academicYearId"
-            defaultValue={klass?.academicYearId ?? ""}
+            defaultValue={
+              klass?.academicYearId ?? defaultAcademicYearId ?? ""
+            }
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <option value="">{t("academicYearNone")}</option>
@@ -98,6 +104,17 @@ export function ClassForm({
               </option>
             ))}
           </select>
+          {/* Ro'yxatda faqat bazadagi o'quv yillari bo'ladi — yangi yilni
+              shu havola orqali qo'shish mumkin. */}
+          {academicYears.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{tYears("empty")}</p>
+          ) : null}
+          <Link
+            href="/academic-years"
+            className="text-xs text-primary hover:underline"
+          >
+            {tYears("title")}
+          </Link>
         </div>
         <div className="space-y-2">
           <Label htmlFor="homeroomTeacherId">{t("homeroomTeacher")}</Label>
