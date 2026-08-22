@@ -18,14 +18,18 @@ export default async function NewClassPage() {
 
   const [academicYears, teachers] = await Promise.all([
     db.academicYear.findMany({
-      orderBy: { startDate: "desc" },
-      select: { id: true, name: true },
+      // Joriy yil ro'yxat boshida turadi va formada avtomatik tanlanadi.
+      orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
+      select: { id: true, name: true, isCurrent: true },
     }),
     db.teacher.findMany({
       orderBy: { user: { fullName: "asc" } },
       select: { id: true, user: { select: { fullName: true } } },
     }),
   ]);
+
+  const currentYear =
+    academicYears.find((year) => year.isCurrent) ?? academicYears[0];
 
   return (
     <div className="space-y-6">
@@ -48,6 +52,7 @@ export default async function NewClassPage() {
               id: year.id,
               label: year.name,
             }))}
+            defaultAcademicYearId={currentYear?.id ?? null}
             teachers={teachers.map((teacher) => ({
               id: teacher.id,
               label: teacher.user.fullName,
