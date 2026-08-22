@@ -26,7 +26,7 @@ export function homePathForRole(_role: Role): string {
  * foydalanuvchi o'z menyusidagi havolani bosib 403 oladi.
  *
  * Eslatma: bu faqat SAHIFA darajasidagi ruxsat. "Qaysi qatorlarni ko'rish
- * mumkin" degan savol — alohida masala (IDOR himoyasi, keyingi bosqich).
+ * mumkin" degan savol — alohida masala (IDOR himoyasi, src/lib/scope.ts).
  */
 export const roleAllowedPaths: Record<Role, string[]> = {
   ADMIN: [
@@ -48,6 +48,9 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/tests",
     "/users",
     "/ai-assistant",
+    "/subjects",
+    "/academic-years",
+    "/lesson-periods",
   ],
 
   TEACHER: [

@@ -87,13 +87,14 @@ enum TestSource {
 
 model AcademicYear {
   id        String    @id @default(cuid())
-  name      String // masalan: "2025-2026"
+  name      String    @unique // masalan: "2025-2026"
   startDate DateTime
   endDate   DateTime
   isCurrent Boolean   @default(false)
   quarters  Quarter[]
   classes   Class[]
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
 }
 
 model Quarter {
@@ -204,27 +205,49 @@ model Class {
   lessons  Lesson[]
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // Bir o'quv yilida bir xil nomli ikkita sinf bo'lmasligi kerak (9-A ikki marta).
+  @@unique([name, academicYearId])
+  @@index([academicYearId, grade])
 }
 
 model Subject {
-  id       String    @id @default(cuid())
-  nameUz   String
-  nameRu   String?
-  nameEn   String?
-  teachers Teacher[] @relation("TeacherSubjects")
-  lessons  Lesson[]
-  grades   Grade[]
-  tests    Test[]
+  id        String    @id @default(cuid())
+  nameUz    String    @unique
+  nameRu    String?
+  nameEn    String?
+  teachers  Teacher[] @relation("TeacherSubjects")
+  lessons   Lesson[]
+  grades    Grade[]
+  tests     Test[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+}
+
+// Qo'ng'iroq jadvali: 1-dars 08:30–09:15, 2-dars 09:25–10:10 ...
+// Dars jadvali shu "uyalar" ustiga quriladi — ziddiyat tekshiruvi soddalashadi.
+model LessonPeriod {
+  id        String   @id @default(cuid())
+  index     Int      @unique // 1, 2, 3 ... (nechanchi dars)
+  label     String? // ixtiyoriy nom: "Katta tanaffusdan keyin"
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  lessons   Lesson[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Lesson {
-  id        String   @id @default(cuid())
-  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid())
+  class     Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
   classId   String
-  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subject   Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher   Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId String
+  period    LessonPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  periodId  String?
   dayOfWeek Int
   startTime String
   endTime   String
@@ -233,9 +256,15 @@ model Lesson {
   attendances Attendance[]
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
+  // Bitta sinf bir vaqtda bitta darsda bo'ladi; bitta o'qituvchi ham.
+  // Ilova qatlamida ham tekshiriladi (xona bilan birga), bu — bazadagi oxirgi qalqon.
+  @@unique([classId, dayOfWeek, periodId])
+  @@unique([teacherId, dayOfWeek, periodId])
   @@index([classId, dayOfWeek])
   @@index([teacherId, dayOfWeek])
+  @@index([periodId, dayOfWeek])
 }
 
 // ------------------------------------------------------------------
@@ -387,18 +416,18 @@ model Message {
 // ------------------------------------------------------------------
 
 model Test {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
-  subject     Subject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subject     Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   subjectId   String?
   topic       String?
   difficulty  String?
-  source      TestSource @default(MANUAL)
+  source      TestSource   @default(MANUAL)
   questions   Json
-  createdBy   User?      @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?        @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdById String?
   results     TestResult[]
-  createdAt   DateTime   @default(now())
+  createdAt   DateTime     @default(now())
 }
 
 model TestResult {
