@@ -46,6 +46,9 @@ export function AcademicYearForm({ mode, year }: AcademicYearFormProps) {
     {}
   );
 
+  // Redirectdan keyin state undefined bo'lishi mumkin.
+  const errorMessage = state?.error;
+
   const quarterValue = (index: number, field: "startDate" | "endDate") =>
     year?.quarters.find((quarter) => quarter.name === index)?.[field] ?? "";
 
@@ -124,8 +127,8 @@ export function AcademicYearForm({ mode, year }: AcademicYearFormProps) {
         {t("isCurrentHint")}
       </label>
 
-      {state.error ? (
-        <p className="text-sm font-medium text-destructive">{state.error}</p>
+      {errorMessage ? (
+        <p className="text-sm font-medium text-destructive">{errorMessage}</p>
       ) : null}
 
       <div className="flex gap-2">

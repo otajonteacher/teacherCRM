@@ -33,6 +33,9 @@ export function SubjectForm({ mode, subject }: SubjectFormProps) {
   const action = mode === "create" ? createSubject : updateSubject;
   const [state, formAction] = useFormState<SubjectFormState, FormData>(action, {});
 
+  // Redirectdan keyin state undefined bo'lishi mumkin.
+  const errorMessage = state?.error;
+
   return (
     <form action={formAction} className="space-y-4">
       {mode === "edit" && subject ? (
@@ -54,8 +57,8 @@ export function SubjectForm({ mode, subject }: SubjectFormProps) {
         </div>
       </div>
 
-      {state.error ? (
-        <p className="text-sm font-medium text-destructive">{state.error}</p>
+      {errorMessage ? (
+        <p className="text-sm font-medium text-destructive">{errorMessage}</p>
       ) : null}
 
       <div className="flex gap-2">
