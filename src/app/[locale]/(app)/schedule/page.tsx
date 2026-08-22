@@ -293,7 +293,7 @@ export default async function SchedulePage({
             )}
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }
