@@ -109,8 +109,11 @@ export default async function SchedulePage({
   const cancelHref = hrefWith();
 
   // "+" bosilganda kun va dars vaqti oldindan to'ldirilgan holda forma ochiladi.
+  // DAYS — readonly tuple (1|2|...|6), shuning uchun includes() emas, some().
   const requestedDay = Number(searchParams.day);
-  const defaultDay = DAYS.includes(requestedDay) ? requestedDay : undefined;
+  const defaultDay = DAYS.some((day) => day === requestedDay)
+    ? requestedDay
+    : undefined;
   const requestedPeriod = searchParams.period?.trim() || undefined;
   const defaultPeriodId = periods.some((period) => period.id === requestedPeriod)
     ? requestedPeriod
