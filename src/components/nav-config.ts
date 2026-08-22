@@ -4,6 +4,9 @@ import {
   GraduationCap,
   School,
   CalendarDays,
+  CalendarRange,
+  Clock,
+  Library,
   ClipboardCheck,
   BookOpenCheck,
   Trophy,
@@ -51,6 +54,13 @@ const item = {
   tests: { key: "tests", href: "/tests", icon: FileQuestion },
   aiAssistant: { key: "aiAssistant", href: "/ai-assistant", icon: Bot },
   users: { key: "users", href: "/users", icon: UserCog },
+  subjects: { key: "subjects", href: "/subjects", icon: Library },
+  academicYears: {
+    key: "academicYears",
+    href: "/academic-years",
+    icon: CalendarRange,
+  },
+  lessonPeriods: { key: "lessonPeriods", href: "/lesson-periods", icon: Clock },
 } satisfies Record<string, NavItem>;
 
 export const navGroupsByRole: Record<Role, NavGroup[]> = {
@@ -82,6 +92,10 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
     {
       groupKey: "system",
       items: [item.messages, item.aiAssistant, item.users],
+    },
+    {
+      groupKey: "settings",
+      items: [item.subjects, item.academicYears, item.lessonPeriods],
     },
   ],
   TEACHER: [
