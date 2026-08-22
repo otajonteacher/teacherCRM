@@ -57,6 +57,9 @@ export function LessonForm({
   const action = mode === "create" ? createLesson : updateLesson;
   const [state, formAction] = useFormState<LessonFormState, FormData>(action, {});
 
+  // Redirectdan keyin state undefined bo'lishi mumkin.
+  const errorMessage = state?.error;
+
   return (
     <form action={formAction} className="space-y-4">
       {mode === "edit" && lesson ? (
@@ -165,8 +168,8 @@ export function LessonForm({
         </div>
       </div>
 
-      {state.error ? (
-        <p className="text-sm font-medium text-destructive">{state.error}</p>
+      {errorMessage ? (
+        <p className="text-sm font-medium text-destructive">{errorMessage}</p>
       ) : null}
 
       <div className="flex gap-2">

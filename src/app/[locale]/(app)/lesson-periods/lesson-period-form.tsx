@@ -46,6 +46,10 @@ export function LessonPeriodForm({
     {}
   );
 
+  // Muvaffaqiyatli saqlashdan keyin action redirect qiladi va hech narsa
+  // qaytarmaydi -> state undefined bo'lib qoladi. Shuning uchun `state?.`.
+  const errorMessage = state?.error;
+
   return (
     <form action={formAction} className="space-y-4">
       {mode === "edit" && period ? (
@@ -91,8 +95,8 @@ export function LessonPeriodForm({
         </div>
       </div>
 
-      {state.error ? (
-        <p className="text-sm font-medium text-destructive">{state.error}</p>
+      {errorMessage ? (
+        <p className="text-sm font-medium text-destructive">{errorMessage}</p>
       ) : null}
 
       <div className="flex gap-2">

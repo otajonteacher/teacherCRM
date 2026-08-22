@@ -44,6 +44,9 @@ export function ClassForm({
   const action = mode === "create" ? createClass : updateClass;
   const [state, formAction] = useFormState<ClassFormState, FormData>(action, {});
 
+  // Redirectdan keyin state undefined bo'lishi mumkin.
+  const errorMessage = state?.error;
+
   return (
     <form action={formAction} className="space-y-4">
       {mode === "edit" && klass ? (
@@ -114,8 +117,8 @@ export function ClassForm({
         </div>
       </div>
 
-      {state.error ? (
-        <p className="text-sm font-medium text-destructive">{state.error}</p>
+      {errorMessage ? (
+        <p className="text-sm font-medium text-destructive">{errorMessage}</p>
       ) : null}
 
       <div className="flex gap-2">
