@@ -119,6 +119,20 @@ export function timeRangesOverlap(
   );
 }
 
+/**
+ * `refine` uchun xabar obyekti.
+ *
+ * Diqqat: `path` ni `as const` bilan yozmaslik kerak — zod mutable
+ * `(string | number)[]` kutadi, `readonly ["endDate"]` esa mos kelmaydi
+ * (TS2769). Shuning uchun yordamchi funksiya bilan to'g'ri tip beramiz.
+ */
+function refineMessage(
+  message: string,
+  path: Array<string | number>
+): { message: string; path: Array<string | number> } {
+  return { message, path };
+}
+
 // ------------------------------------------------------------------
 // Fanlar
 // ------------------------------------------------------------------
@@ -160,10 +174,10 @@ const academicYearBase = z.object({
 const yearRangeCheck = (data: { startDate: string; endDate: string }) =>
   toDate(data.startDate) < toDate(data.endDate);
 
-const yearRangeMessage = {
-  message: "Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak.",
-  path: ["endDate"] as const,
-};
+const yearRangeMessage = refineMessage(
+  "Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak.",
+  ["endDate"]
+);
 
 export const academicYearWriteSchema = academicYearBase.refine(
   yearRangeCheck,
@@ -223,10 +237,10 @@ const lessonPeriodBase = z.object({
 const periodRangeCheck = (data: { startTime: string; endTime: string }) =>
   timeToMinutes(data.startTime) < timeToMinutes(data.endTime);
 
-const periodRangeMessage = {
-  message: "Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak.",
-  path: ["endTime"] as const,
-};
+const periodRangeMessage = refineMessage(
+  "Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak.",
+  ["endTime"]
+);
 
 export const lessonPeriodWriteSchema = lessonPeriodBase.refine(
   periodRangeCheck,

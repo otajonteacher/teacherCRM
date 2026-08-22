@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
 import { redirectNever } from "@/lib/auth-guard";
@@ -30,15 +31,12 @@ type PeriodInput = {
  * Qo'ng'iroq jadvalida bir dars boshqasining ustiga chiqmasligi kerak,
  * tartib raqami ham takrorlanmasligi kerak. Tekshiruv transaction ichida —
  * ikki admin bir vaqtda saqlasa ham holat buzilmaydi.
+ *
+ * `tx` uchun qo'lda yozilgan tip mos kelmaydi (Prisma klienti ancha boy),
+ * shuning uchun Prisma o'zining `TransactionClient` tipini ishlatamiz.
  */
 async function periodConflict(
-  tx: {
-    lessonPeriod: {
-      findMany: (args: unknown) => Promise<
-        Array<{ id: string; index: number; startTime: string; endTime: string }>
-      >;
-    };
-  },
+  tx: Prisma.TransactionClient,
   input: PeriodInput
 ): Promise<string | null> {
   const others = await tx.lessonPeriod.findMany({
