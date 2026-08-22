@@ -6,12 +6,17 @@ import {
   TEACHER_TEMPLATE_HEADERS,
   TEACHER_TEMPLATE_SAMPLE,
 } from "@/lib/imports";
+import {
+  CLASS_TEMPLATE_HEADERS,
+  CLASS_TEMPLATE_SAMPLE,
+} from "@/lib/class-imports";
 
 /**
  * IMPORT SHABLONI (.xlsx)
  * =======================
  * GET /api/import-template/students
  * GET /api/import-template/teachers
+ * GET /api/import-template/classes
  *
  * Middleware `/api/*` ni tekshirmaydi — shu sababli ruxsat SHU YERDA
  * tekshiriladi: faqat ADMIN. Shablon fayl xotirada yasaladi, diskda
@@ -32,12 +37,18 @@ const TEMPLATES = {
     sheetName: "O'qituvchilar",
     fileName: "oqituvchilar-shablon.xlsx",
   },
+  classes: {
+    headers: CLASS_TEMPLATE_HEADERS,
+    sample: CLASS_TEMPLATE_SAMPLE,
+    sheetName: "Sinflar",
+    fileName: "sinflar-shablon.xlsx",
+  },
 } as const;
 
 type TemplateKey = keyof typeof TEMPLATES;
 
 function isTemplateKey(value: string): value is TemplateKey {
-  return value === "students" || value === "teachers";
+  return value === "students" || value === "teachers" || value === "classes";
 }
 
 export async function GET(
