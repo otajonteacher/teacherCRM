@@ -21,6 +21,7 @@ export default async function ClassesPage({
 }) {
   const user = await requireRole("ADMIN", "TEACHER");
   const t = await getTranslations("classes");
+  const tImport = await getTranslations("import");
   const canWrite = user.role === "ADMIN";
 
   const q = searchParams.q?.trim() ?? "";
@@ -61,9 +62,14 @@ export default async function ClassesPage({
           <p className="text-muted-foreground">{t("subtitle")}</p>
         </div>
         {canWrite ? (
-          <Button asChild>
-            <Link href="/classes/new">{t("add")}</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/classes/import">{tImport("action")}</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/classes/new">{t("add")}</Link>
+            </Button>
+          </div>
         ) : null}
       </div>
 
