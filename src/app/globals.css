@@ -57,3 +57,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Scroll ishlaydi, lekin scrollbar ko'rinmaydi (yon menyu uchun) */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE / eski Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none; /* Chrome / Safari / Edge */
+  }
+}
