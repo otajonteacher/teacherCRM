@@ -32,7 +32,7 @@ import { redirectNever, type SessionUser } from "./auth-guard";
  * Egasining qat'iy talabi: ADMIN hamma narsani ko'radi va hamma amalni
  * bajaradi. Shuning uchun har bir doira funksiyasining BIRINCHI sharti
  * `ADMIN` bo'lib, bo'sh filtr (`{}`) qaytaradi. Yangi doira yozganda shu
- * tartib saqlanadi.
+ * tartib saqlanadi. Lekin ADMIN ham auditdan o'tadi.
  *
  * Bu fayl "qaysi QATORLAR" savoliga javob beradi.
  * "Qaysi ROL" savoli — src/lib/auth-guard.ts. Ikkisi birga ishlatiladi.
@@ -306,6 +306,31 @@ export async function assertCanGradeLesson(
 ): Promise<string> {
   const row = await db.lesson.findFirst({
     where: { AND: [{ id: lessonId }, gradingLessonScope(user)] },
+    select: { id: true },
+  });
+  return (await assertExists(row)).id;
+}
+
+/**
+ * SHU SINFNING SHU FANIGA baho qo'yish huquqini tekshiradi (oylik jurnal).
+ *
+ * Jurnal bir oylik bo'lgani uchun bitta `lessonId` yetarli emas — oyda o'sha
+ * fan bir necha marta o'tiladi. Shuning uchun tekshiruv "sinf + fan"
+ * juftligi bo'yicha bajariladi: shu juftlikda foydalanuvchining darsi
+ * bormi-yo'qmi.
+ *
+ * Bu ham `gradingLessonScope` ga tayanadi, ya'ni sinf rahbarligi yetarli
+ * emas — faqat fan o'qituvchisi (yoki ADMIN).
+ */
+export async function assertCanGradeClassSubject(
+  user: SessionUser,
+  classId: string,
+  subjectId: string
+): Promise<string> {
+  const row = await db.lesson.findFirst({
+    where: {
+      AND: [{ classId, subjectId }, gradingLessonScope(user)],
+    },
     select: { id: true },
   });
   return (await assertExists(row)).id;
