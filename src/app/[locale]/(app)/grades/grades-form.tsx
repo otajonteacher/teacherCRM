@@ -27,6 +27,10 @@ import { saveGrades, type GradeFormState } from "./actions";
  * maydon tozalansa — baho o'chiriladi (xato kiritilgan bahoni tuzatish yo'li).
  * Shuning uchun forma barcha o'quvchilarni yuboradi, bo'sh qiymat ham
  * ma'noga ega.
+ *
+ * Bu yerdagi tekshiruvlar faqat QULAYLIK uchun — haqiqiy himoya serverda
+ * (zod 0-100 + `assertCanGradeLesson`). Klientdagi tekshiruvga hech qachon
+ * ishonilmaydi.
  */
 
 type StudentRow = { id: string; fullName: string };
@@ -83,10 +87,6 @@ export function GradesForm({
 
   // Redirectdan keyin state undefined bo'lishi mumkin.
   const errorMessage = state?.error;
-
-  const numericValues = students
-    .map((student) => Number(values[student.id]))
-    .filter((value) => Number.isFinite(value) && values !== undefined);
 
   const entered = students.filter(
     (student) => (values[student.id] ?? "").trim() !== ""
