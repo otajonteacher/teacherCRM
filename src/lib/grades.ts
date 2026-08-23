@@ -1,31 +1,34 @@
 import { z } from "zod";
-import { dateField, idField, toNumber } from "./academics";
+import { idField, toNumber } from "./academics";
 
 /**
- * BAHOLAR — VALIDATSIYA VA HISOB-KITOB (6-bosqich)
- * ================================================
+ * BAHOLAR — OYLIK JURNAL (6-bosqich)
+ * ===================================
  *
- * KELISHILGAN QAROR: tizim FAQAT 100 BALLIK. 5 ballik variant yo'q, sozlama
- * ham yo'q — shuning uchun bu yerda bitta oraliq bor: 0-100 butun son.
+ * KO'RINISH: qog'oz jurnalning aynan o'zi. Qatorlar — o'quvchilar, ustunlar —
+ * SANALAR, oxirida o'rtacha ball. Har bir fan o'qituvchisi o'z jurnalini
+ * ochadi: ingliz tili o'qituvchisiga ingliz tili jurnali, rus tili
+ * o'qituvchisiga rus tili jurnali.
  *
- * Ma'lumot modeli davomatdan FARQ QILADI, buni bilib turish muhim:
+ * Nima uchun ustunlar sana: bir jurnal = bir fan. Shuning uchun fan nomini
+ * ustunga yozish keraksiz takror bo'lardi. Fanlar ustun bo'lgan ko'rinish —
+ * alohida "Jurnal" menyusida bo'ladi (sinf rahbari va admin uchun).
+ *
+ * KELISHILGAN QAROR: tizim FAQAT 100 BALLIK, butun son 0–100.
+ *
+ * Ma'lumot modeli davomatdan FARQ QILADI:
  *
  *   Attendance -> lessonId ga bog'langan, @@unique([studentId, lessonId, date])
  *   Grade      -> subjectId ga bog'langan, unique cheklovi YO'Q
  *
- * Ya'ni baho aniq darsga emas, FANGA bog'lanadi. Egasi bilan shu kelishildi:
- * sxemani o'zgartirmaslik uchun. Amalda o'qituvchi darsni tanlaydi, tizim esa
- * o'sha darsning fanini olib bahoni fan + sana + chorak bo'yicha yozadi.
+ * Ya'ni baho darsga emas, FANGA bog'lanadi — sxemani o'zgartirmaslik uchun
+ * shunday kelishildi. Unique cheklovi yo'qligi sababli idempotentlik ilova
+ * qatlamida ta'minlanadi: server (fan + chorak + sana + tur + o'quvchi)
+ * bo'yicha mavjud bahoni O'ZI topadi. Klientdan baho ID si OLINMAYDI.
  *
- * Unique cheklovi yo'qligi sababli IDEMPOTENTLIK ilova qatlamida
- * ta'minlanadi: saqlashdan oldin server (fan + chorak + sana + tur) bo'yicha
- * mavjud bahoni o'zi topadi va uni yangilaydi. Klientdan baho ID si
- * OLINMAYDI — aks holda hujumchi begona baho ID sini yuborib boshqa
- * o'quvchining bahosini o'zgartirishi mumkin bo'lardi.
- *
- * MUHIM: bu fayl faqat "ma'lumot shakli" va "hisob-kitob" bilan shug'ullanadi.
- * "Bu odam shu darsga baho qo'yishi mumkinmi?" savoli — scope.ts
- * (`assertCanGradeLesson`) mas'uliyatida.
+ * Bu fayl faqat ma'lumot shakli va hisob-kitob bilan shug'ullanadi.
+ * "Bu odam shu fanga baho qo'yishi mumkinmi?" savoli — scope.ts
+ * (`assertCanGradeClassSubject`) mas'uliyatida.
  */
 
 /** Baho turlari — Prisma'dagi `GradeType` enum bilan bir xil tartibda. */
@@ -38,15 +41,18 @@ export const GRADE_MIN = 0;
 export const GRADE_MAX = 100;
 
 /**
- * Formadagi maydon nomi: "grade:<studentId>".
+ * Jadvaldagi maydon nomi: "grade:<studentId>:<YYYY-MM-DD>".
  *
- * Davomatdagi `entry:` bilan ataylab boshqacha prefiks — ikkita modul bir
- * sahifada uchrashib qolsa maydonlar aralashmasligi kerak.
+ * Jadvalda bir vaqtda ko'p sana ko'rinadi, shuning uchun maydon nomi
+ * o'quvchi bilan birga SANANI ham olib yuradi.
  */
 export const ENTRY_PREFIX = "grade:";
 
-/** "YYYY-MM-DD" ko'rinishini tekshirish uchun (searchParams ishonchsiz manba). */
+/** "YYYY-MM-DD" — searchParams va forma maydonlari ishonchsiz manba. */
 export const DATE_TEXT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** "YYYY-MM" — oy tanlagich qiymati. */
+export const MONTH_TEXT_PATTERN = /^\d{4}-\d{2}$/;
 
 /** Berilgan matn haqiqiy baho turimi? (`as const` tuple'da .includes ishlamaydi) */
 export function isGradeType(value: unknown): value is GradeTypeValue {
@@ -54,58 +60,72 @@ export function isGradeType(value: unknown): value is GradeTypeValue {
 }
 
 /**
- * FormData'dagi "grade:<studentId>" maydonlarini ro'yxatga aylantiradi.
+ * Jadval katakchalarini ro'yxatga aylantiradi.
  *
- * Bo'sh qiymat `null` bo'lib o'tadi va bu "bahoni O'CHIRISH" degani —
- * o'qituvchi xato kiritgan bahoni maydonni tozalab olib tashlashi kerak.
- * Belgilanmagan o'quvchi umuman yuborilmaydi, ya'ni yarim to'ldirilgan
- * jurnalni ham saqlash mumkin.
+ * Bo'sh katakcha `null` bo'lib o'tadi va bu "bahoni O'CHIRISH" degani —
+ * o'qituvchi xato kiritgan bahoni katakchani tozalab olib tashlaydi.
+ *
+ * Sana shakli buzuq bo'lsa katakcha butunlay tashlanadi: bu yerda xato
+ * qaytarish keraksiz, chunki to'g'ri forma bunday qiymat yubormaydi.
  */
-function toGradeInput(raw: unknown): unknown {
+function toGridInput(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
 
   const source = raw as Record<string, unknown>;
-  const entries: Array<{ studentId: string; value: unknown }> = [];
+  const entries: Array<{
+    studentId: string;
+    date: string;
+    value: unknown;
+  }> = [];
 
   for (const [key, value] of Object.entries(source)) {
     if (!key.startsWith(ENTRY_PREFIX)) continue;
 
-    const studentId = key.slice(ENTRY_PREFIX.length).trim();
-    if (studentId === "") continue;
+    const parts = key.slice(ENTRY_PREFIX.length).split(":");
+    if (parts.length !== 2) continue;
+
+    const studentId = parts[0].trim();
+    const date = parts[1].trim();
+    if (studentId === "" || !DATE_TEXT_PATTERN.test(date)) continue;
 
     const first = Array.isArray(value) ? value[0] : value;
     const text = typeof first === "string" ? first.trim() : first;
 
     entries.push({
       studentId,
+      date,
       value: text === "" || text === undefined ? null : text,
     });
   }
 
   return {
-    lessonId: source.lessonId,
-    date: source.date,
+    classId: source.classId,
+    subjectId: source.subjectId,
+    month: source.month,
     type: source.type,
     entries,
   };
 }
 
 /**
- * Bahoni saqlash sxemasi.
+ * Jadvalni saqlash sxemasi.
  *
- * `max(300)` — bitta sinf uchun aql bovar qiladigan yuqori chegara. Bu
- * cheklov Server Action'ga qo'lda yuborilgan katta so'rovdan himoya qiladi.
+ * `max(2000)` — aql bovar qiladigan yuqori chegara (30 o'quvchi × ~12 dars
+ * kuni ≈ 360). Bu cheklov Server Action'ga qo'lda yuborilgan katta
+ * so'rovdan himoya qiladi.
  */
-export const gradeSaveSchema = z.preprocess(
-  toGradeInput,
+export const gradeGridSaveSchema = z.preprocess(
+  toGridInput,
   z.object({
-    lessonId: idField,
-    date: dateField,
+    classId: idField,
+    subjectId: idField,
+    month: z.string().regex(MONTH_TEXT_PATTERN),
     type: z.enum(GRADE_TYPES),
     entries: z
       .array(
         z.object({
           studentId: z.string().min(1),
+          date: z.string().regex(DATE_TEXT_PATTERN),
           value: z.union([
             z.null(),
             z.preprocess(
@@ -115,11 +135,16 @@ export const gradeSaveSchema = z.preprocess(
           ]),
         })
       )
-      .max(300),
+      .max(2000),
   })
 );
 
-export type GradeSaveInput = z.infer<typeof gradeSaveSchema>;
+export type GradeGridSaveInput = z.infer<typeof gradeGridSaveSchema>;
+
+/** Katakcha kaliti — klient va server bir xil kalitdan foydalanadi. */
+export function cellKey(studentId: string, date: string): string {
+  return `${studentId}|${date}`;
+}
 
 // ------------------------------------------------------------------
 // Hisob-kitob
@@ -140,7 +165,7 @@ export function averageOf(values: number[]): number | null {
 /**
  * 100 ballik bahoning daraja nomi (tarjima kaliti).
  *
- * Bu faqat KO'RSATISH uchun hisoblanadi — bazada saqlanmaydi. Shunda
+ * Faqat KO'RSATISH uchun hisoblanadi — bazada saqlanmaydi. Shunda
  * chegaralarni keyin o'zgartirsa, eski yozuvlarni qayta hisoblash kerak
  * bo'lmaydi.
  */
@@ -153,20 +178,9 @@ export function gradeLevelKey(
   return "weak";
 }
 
-/** Baho oraliqda va butun sonmi? (server tomonda zod ham tekshiradi) */
-export function isValidGradeValue(value: number): boolean {
-  return Number.isInteger(value) && value >= GRADE_MIN && value <= GRADE_MAX;
-}
-
 // ------------------------------------------------------------------
-// Sana yordamchilari
+// Sana yordamchilari (barchasi UTC — davomat moduli bilan bir xil kelishuv)
 // ------------------------------------------------------------------
-
-/**
- * Barcha hisob-kitob UTC yarim tunida bajariladi — davomat moduli bilan bir
- * xil kelishuv. `Grade.date` maydoni `@db.Date` emas, lekin bir kunlik
- * yozuvlarni aniq solishtirish uchun baribir yarim tunga tekislanadi.
- */
 
 export function dateToText(value: Date): string {
   return value.toISOString().slice(0, 10);
@@ -176,8 +190,54 @@ export function todayText(): string {
   return dateToText(new Date());
 }
 
+/** "2026-08-21" → "2026-08" */
+export function monthOf(dateText: string): string {
+  return dateText.slice(0, 7);
+}
+
+export function todayMonth(): string {
+  return monthOf(todayText());
+}
+
 /** 1 = dushanba ... 7 = yakshanba (Lesson.dayOfWeek bilan bir xil kelishuv). */
 export function dayOfWeekFromText(text: string): number {
   const day = new Date(`${text}T00:00:00.000Z`).getUTCDay();
   return day === 0 ? 7 : day;
+}
+
+/**
+ * Oy ichidagi — FAQAT shu fan darsi bo'ladigan kunlar.
+ *
+ * Jurnal ustunlari shu ro'yxatdan yasaladi. Natijada jadval keraksiz
+ * kengaymaydi: oyda 30 kun emas, masalan haftada 2 dars bo'lsa ~8–9 ustun
+ * chiqadi. Yakshanba tabiiy ravishda tushib qoladi, chunki yakshanbaga dars
+ * qo'yilmaydi.
+ */
+export function monthDatesForWeekdays(
+  month: string,
+  weekdays: number[]
+): string[] {
+  if (!MONTH_TEXT_PATTERN.test(month)) return [];
+
+  const allowed = new Set(weekdays);
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+
+  const result: string[] = [];
+  const cursor = new Date(Date.UTC(year, monthIndex, 1));
+
+  while (cursor.getUTCMonth() === monthIndex) {
+    const day = cursor.getUTCDay();
+    const dayOfWeek = day === 0 ? 7 : day;
+    if (allowed.has(dayOfWeek)) result.push(dateToText(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return result;
+}
+
+/** "2026-08-21" → "21.08" (jadval sarlavhasi uchun qisqa ko'rinish). */
+export function shortDateLabel(dateText: string): string {
+  return `${dateText.slice(8, 10)}.${dateText.slice(5, 7)}`;
 }

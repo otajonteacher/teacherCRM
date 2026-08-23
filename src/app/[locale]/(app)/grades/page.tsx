@@ -1,15 +1,16 @@
 import { getTranslations } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { redirectNever, requireRole } from "@/lib/auth-guard";
 import { classScope, gradingLessonScope, studentScope } from "@/lib/scope";
 import { toDate } from "@/lib/academics";
 import {
-  DATE_TEXT_PATTERN,
   GRADE_TYPES,
-  dayOfWeekFromText,
+  MONTH_TEXT_PATTERN,
+  cellKey,
+  dateToText,
   isGradeType,
-  todayText,
+  monthDatesForWeekdays,
+  todayMonth,
   type GradeTypeValue,
 } from "@/lib/grades";
 import { Button } from "@/components/ui/button";
@@ -23,19 +24,20 @@ import {
 import { GradesForm } from "./grades-form";
 
 /**
- * BAHOLAR — TEZKOR KIRITISH SAHIFASI (6-bosqich)
- * ==============================================
+ * BAHOLAR — OYLIK JURNAL (6-bosqich)
+ * ==================================
  *
- * Ish tartibi: sana + baho turi + sinf tanlanadi → o'sha kunning darslari
- * chiqadi → dars tanlanadi → butun sinf bitta ekranda baholanadi va bir
- * marta saqlanadi.
+ * Ish tartibi: sinf + fan + oy tanlanadi → qog'oz jurnalga o'xshash jadval
+ * ochiladi (ustunlar — sanalar) → baholar kiritilib bir marta saqlanadi.
  *
- * MUHIM FARQ: dars ro'yxati `gradingLessonScope` bilan olinadi, ya'ni
- * o'qituvchi FAQAT O'ZI DARS BERADIGAN darslarni ko'radi. Sinf rahbari
- * bo'lgani uchun boshqa fan bu ro'yxatga tushmaydi (davomatdan farqli).
+ * HAR FAN O'QITUVCHISIGA ALOHIDA JURNAL: fan ro'yxati `gradingLessonScope`
+ * bilan olinadi, ya'ni ingliz tili o'qituvchisi faqat ingliz tilini ko'radi,
+ * rus tili o'qituvchisi faqat rus tilini. Sinf rahbari bo'lish bu ro'yxatni
+ * kengaytirmaydi — baho qoidasi davomatdan farq qiladi.
  *
- * Ota-ona bu sahifada yozmaydi — u boshqarish paneliga yo'naltiriladi.
- * (Ota-ona uchun baholarni ko'rish ko'rinishi keyingi ishda qo'shiladi.)
+ * Ustunlar dars jadvalidan yasaladi: faqat shu fan darsi bo'ladigan kunlar.
+ * Shuning uchun jadval keraksiz kengaymaydi va yakshanba o'z-o'zidan
+ * tushib qoladi.
  */
 
 const selectClassName =
@@ -46,8 +48,8 @@ export default async function GradesPage({
 }: {
   searchParams: {
     classId?: string;
-    date?: string;
-    lessonId?: string;
+    subjectId?: string;
+    month?: string;
     type?: string;
     saved?: string;
   };
@@ -59,111 +61,118 @@ export default async function GradesPage({
 
   const t = await getTranslations("grades");
 
-  const dateParam = searchParams.date?.trim();
-  const date =
-    dateParam && DATE_TEXT_PATTERN.test(dateParam) ? dateParam : todayText();
-  const dayOfWeek = dayOfWeekFromText(date);
-  const isSunday = dayOfWeek === 7;
+  // searchParams ishonchsiz manba — hammasi tekshiriladi.
+  const monthParam = searchParams.month?.trim();
+  const month =
+    monthParam && MONTH_TEXT_PATTERN.test(monthParam)
+      ? monthParam
+      : todayMonth();
 
-  // searchParams ishonchsiz manba — enum bo'yicha tekshiriladi.
   const typeParam = searchParams.type?.trim();
   const type: GradeTypeValue = isGradeType(typeParam) ? typeParam : "DAILY";
 
   const classId = searchParams.classId?.trim() || undefined;
+  const subjectId = searchParams.subjectId?.trim() || undefined;
 
+  /**
+   * Sinf ro'yxati: faqat foydalanuvchi DARS BERADIGAN sinflar. `classScope`
+   * o'zi yetarli emas, chunki u sinf rahbarligini ham qo'shadi — baho
+   * qo'yish uchun esa bu asos bo'lmaydi.
+   */
   const classes = await db.class.findMany({
-    where: classScope(user),
+    where: {
+      AND: [classScope(user), { lessons: { some: gradingLessonScope(user) } }],
+    },
     orderBy: [{ grade: "asc" }, { name: "asc" }],
     select: { id: true, name: true },
   });
 
-  // Faqat o'qituvchining O'Z darslari — gradingLessonScope hal qiladi.
-  const lessons = isSunday
-    ? []
-    : await db.lesson.findMany({
-        where: {
-          AND: [
-            gradingLessonScope(user),
-            { dayOfWeek },
-            classId ? { classId } : {},
-          ],
-        },
-        orderBy: [{ period: { index: "asc" } }, { startTime: "asc" }],
-        select: {
-          id: true,
-          classId: true,
-          subjectId: true,
-          room: true,
-          class: { select: { name: true } },
-          subject: { select: { nameUz: true } },
-          period: { select: { index: true, startTime: true, endTime: true } },
-        },
-      });
-
-  const lessonId = searchParams.lessonId?.trim() || undefined;
-  const lesson = lessonId
-    ? lessons.find((item) => item.id === lessonId)
+  const selectedClass = classId
+    ? classes.find((klass) => klass.id === classId)
     : undefined;
 
-  const students = lesson
-    ? await db.student.findMany({
+  // Tanlangan sinfda foydalanuvchi o'qitadigan fanlar.
+  const subjectLessons = selectedClass
+    ? await db.lesson.findMany({
         where: {
-          AND: [
-            studentScope(user),
-            { classId: lesson.classId, status: "ACTIVE" },
-          ],
+          AND: [{ classId: selectedClass.id }, gradingLessonScope(user)],
         },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-        select: { id: true, firstName: true, lastName: true },
+        orderBy: { subject: { nameUz: "asc" } },
+        select: {
+          subjectId: true,
+          dayOfWeek: true,
+          subject: { select: { nameUz: true } },
+        },
       })
     : [];
 
-  const existing = lesson
-    ? await db.grade.findMany({
-        where: {
-          subjectId: lesson.subjectId,
-          type,
-          date: toDate(date),
-          student: { classId: lesson.classId },
-        },
-        select: { studentId: true, value: true },
-      })
-    : [];
-
-  const initial: Record<string, number> = {};
-  for (const row of existing) initial[row.studentId] = row.value;
-
-  // Qaysi darslarga baho allaqachon kiritilgani ro'yxatda ko'rinadi.
-  const gradedSubjectIds = new Set(
-    lessons.length === 0
-      ? []
-      : (
-          await db.grade.findMany({
-            where: {
-              type,
-              date: toDate(date),
-              subjectId: { in: lessons.map((item) => item.subjectId) },
-            },
-            select: { subjectId: true },
-            distinct: ["subjectId"],
-          })
-        ).map((row) => row.subjectId)
+  const subjects = Array.from(
+    new Map(
+      subjectLessons.map((lesson) => [
+        lesson.subjectId,
+        { id: lesson.subjectId, name: lesson.subject.nameUz },
+      ])
+    ).values()
   );
 
-  const hrefWith = (extra: Record<string, string> = {}) => {
-    const params = new URLSearchParams({ date, type });
-    if (classId) params.set("classId", classId);
-    Object.entries(extra).forEach(([key, value]) => params.set(key, value));
-    return `/grades?${params.toString()}`;
-  };
+  const selectedSubject = subjectId
+    ? subjects.find((subject) => subject.id === subjectId)
+    : undefined;
+
+  // Ustunlar: shu fan darsi bo'ladigan hafta kunlari → oy ichidagi sanalar.
+  const weekdays = selectedSubject
+    ? subjectLessons
+        .filter((lesson) => lesson.subjectId === selectedSubject.id)
+        .map((lesson) => lesson.dayOfWeek)
+    : [];
+  const dates = selectedSubject
+    ? monthDatesForWeekdays(month, weekdays)
+    : [];
+
+  const students =
+    selectedClass && selectedSubject
+      ? await db.student.findMany({
+          where: {
+            AND: [
+              studentScope(user),
+              { classId: selectedClass.id, status: "ACTIVE" },
+            ],
+          },
+          orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+          select: { id: true, firstName: true, lastName: true },
+        })
+      : [];
+
+  // Saqlangan baholar — bitta so'rov bilan (N+1 yo'q).
+  const existing =
+    selectedSubject && dates.length > 0
+      ? await db.grade.findMany({
+          where: {
+            subjectId: selectedSubject.id,
+            type,
+            date: { in: dates.map((date) => toDate(date)) },
+            student: { classId: selectedClass?.id },
+          },
+          select: { studentId: true, date: true, value: true },
+        })
+      : [];
+
+  const initial: Record<string, number> = {};
+  for (const row of existing) {
+    initial[cellKey(row.studentId, dateToText(row.date))] = row.value;
+  }
+
+  const cancelHref = `/grades?${new URLSearchParams({
+    month,
+    type,
+    ...(classId ? { classId } : {}),
+  }).toString()}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">{t("subtitle")}</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+        <p className="text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       {searchParams.saved ? (
@@ -178,126 +187,110 @@ export default async function GradesPage({
           <CardDescription>{t("chooseHint")}</CardDescription>
         </CardHeader>
         <CardContent>
+          {/*
+            Fan ro'yxati sinfga bog'liq, shuning uchun oddiy GET forma:
+            sinf tanlanib "Ko'rsatish" bosilgach fanlar yangilanadi.
+          */}
           <form className="grid gap-3 sm:grid-cols-4" method="get">
-            <input
-              type="date"
-              name="date"
-              defaultValue={date}
-              className={selectClassName}
-            />
             <select
               name="classId"
               defaultValue={classId ?? ""}
               className={selectClassName}
             >
-              <option value="">{t("allClasses")}</option>
+              <option value="">{t("chooseClass")}</option>
               {classes.map((klass) => (
                 <option key={klass.id} value={klass.id}>
                   {klass.name}
                 </option>
               ))}
             </select>
+
             <select
-              name="type"
-              defaultValue={type}
+              name="subjectId"
+              defaultValue={subjectId ?? ""}
               className={selectClassName}
+              disabled={subjects.length === 0}
             >
+              <option value="">{t("chooseSubject")}</option>
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="month"
+              name="month"
+              defaultValue={month}
+              className={selectClassName}
+            />
+
+            <select name="type" defaultValue={type} className={selectClassName}>
               {GRADE_TYPES.map((value) => (
                 <option key={value} value={value}>
                   {t(`type.${value}`)}
                 </option>
               ))}
             </select>
-            <Button type="submit" variant="secondary">
+
+            <Button type="submit" variant="secondary" className="sm:col-span-1">
               {t("apply")}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{t("lessonsTitle")}</CardTitle>
-          <CardDescription>{t("lessonsHint")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isSunday ? (
-            <p className="text-sm text-muted-foreground">{t("sunday")}</p>
-          ) : lessons.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("noLessons")}</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {lessons.map((item) => {
-                const active = item.id === lesson?.id;
-                return (
-                  <Link
-                    key={item.id}
-                    href={`${hrefWith({ lessonId: item.id })}#grades-form`}
-                    className={`rounded-md border px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input hover:bg-muted"
-                    }`}
-                  >
-                    <span className="font-medium">
-                      {item.period ? `${item.period.index}. ` : ""}
-                      {item.subject.nameUz}
-                    </span>
-                    <span
-                      className={`ml-2 text-xs ${
-                        active ? "opacity-80" : "text-muted-foreground"
-                      }`}
-                    >
-                      {item.class.name}
-                      {item.period
-                        ? ` · ${item.period.startTime}–${item.period.endTime}`
-                        : ""}
-                      {gradedSubjectIds.has(item.subjectId)
-                        ? ` · ${t("done")}`
-                        : ""}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {classes.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">{t("noClasses")}</p>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {lesson ? (
-        <Card id="grades-form" className="scroll-mt-6">
+      {selectedClass && selectedSubject ? (
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              {lesson.class.name} · {lesson.subject.nameUz}
+              {selectedClass.name} · {selectedSubject.name}
             </CardTitle>
             <CardDescription>
-              {date} · {t(`type.${type}`)}
-              {lesson.period
-                ? ` · ${lesson.period.startTime}–${lesson.period.endTime}`
-                : ""}
-              {lesson.room ? ` · ${lesson.room}` : ""}
+              {month} · {t(`type.${type}`)}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {students.length === 0 ? (
+            {dates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("noDates")}</p>
+            ) : students.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("noStudents")}</p>
             ) : (
               <GradesForm
-                key={`${lesson.id}-${date}-${type}`}
-                lessonId={lesson.id}
-                date={date}
+                key={`${selectedClass.id}-${selectedSubject.id}-${month}-${type}`}
+                classId={selectedClass.id}
+                subjectId={selectedSubject.id}
+                month={month}
                 type={type}
                 students={students.map((student) => ({
                   id: student.id,
                   fullName: `${student.lastName} ${student.firstName}`,
                 }))}
+                dates={dates}
                 initial={initial}
-                cancelHref={hrefWith()}
+                cancelHref={cancelHref}
               />
             )}
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              {selectedClass ? t("needSubject") : t("needClass")}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
