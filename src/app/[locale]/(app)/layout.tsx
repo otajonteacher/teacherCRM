@@ -14,20 +14,32 @@ export const dynamic = "force-dynamic";
  * ILOVA QOBIG'I — SKROL QOIDASI
  * =============================
  *
- * YAGONA skrol — sahifaning o'zi (brauzerning o'ng chetidagi asosiy skrol).
- * Kontent maydoni ichida ALOHIDA skrol konteyneri YARATILMAYDI. Sababi:
- * asosiy ma'lumot maydoni (jadvallar, ro'yxatlar) tabiiy ravishda uzun
- * bo'ladi va u sahifa bilan birga skrol bo'lishi kerak. Ichki skrol
- * qo'shilsa, ekranda ikkita skrolbar yonma-yon paydo bo'ladi va navigatsiya
- * chalkashadi.
+ * YAGONA ko'rinadigan skrol — sahifaning o'zi (brauzerning o'ng chetidagi
+ * asosiy skroli). Kontent maydoni ichida ALOHIDA skrol konteyneri
+ * YARATILMAYDI: jadvallar va ro'yxatlar tabiiy ravishda uzun bo'ladi va
+ * sahifa bilan birga skrol bo'lishi kerak.
  *
- * Shu bilan birga yon menyu va header ko'z oldida qolishi kerak. Bu
- * `overflow` bilan emas, `position: sticky` bilan hal qilinadi — sticky
- * yangi skrol konteyneri YARATMAYDI, ya'ni qo'shimcha skrolbar chiqmaydi.
+ * Yon menyu va header ko'z oldida qolishi `overflow` bilan emas,
+ * `position: sticky` bilan hal qilinadi — sticky yangi skrol konteyneri
+ * YARATMAYDI, ya'ni qo'shimcha skrolbar chiqmaydi.
  *
- * Yon menyuning O'ZI ham uzun bo'lishi mumkin (bandlar ko'p). Shuning uchun
- * unda ichki skrol bor, lekin skrolbari `no-scrollbar` bilan yashirilgan —
- * ko'rinadigan skrolbar faqat bitta, sahifaning asosiysi.
+ * Yon menyuning o'zi uzun bo'lishi mumkin (bandlar ko'p), shuning uchun
+ * unda ichki skrol bor — lekin skrolbari `no-scrollbar` bilan yashirilgan.
+ *
+ * BALANDLIK TAQSIMOTI (pastdagi bo'sh maydon muammosi)
+ * ----------------------------------------------------
+ * `min-h-screen` ataylab TASHQI konteynerda emas, O'NG USTUNDA turadi.
+ *
+ * Nima uchun: yon menyu `h-screen` (aynan bir ekran) va `self-start`.
+ * Agar `min-h-screen` tashqi flex konteynerga berilsa, konteyner
+ * balandligi eng baland bolaga qarab o'sadi, yon menyu esa `h-screen`
+ * bo'lib qolgani uchun uning ostida bo'sh joy paydo bo'ladi — va o'ng
+ * ustundagi `main` foni ham konteynerning to'liq balandligini qoplamay,
+ * sahifa oxirida oq bo'shliq ko'rinadi.
+ *
+ * `min-h-screen` o'ng ustunda bo'lsa: ustun kamida bir ekran, kontent
+ * katta bo'lsa erkin o'sadi va `main` (flex-1) doim to'liq to'ladi.
+ * Bo'sh maydon qolmaydi.
  */
 export default async function AppLayout({
   children,
@@ -45,8 +57,9 @@ export default async function AppLayout({
   const { role, name } = session!.user;
 
   return (
-    // `overflow-hidden` va qat'iy balandlik YO'Q — sahifa erkin o'sadi.
-    <div className="flex min-h-screen">
+    // `overflow-hidden`, qat'iy balandlik va `min-h-screen` YO'Q —
+    // balandlikni o'ng ustun belgilaydi (yuqoridagi izohga qarang).
+    <div className="flex">
       {/*
         Yon menyu — faqat md+ ekranlarda.
         `sticky top-0 h-screen` — skrol paytida joyida qotib turadi.
@@ -61,7 +74,7 @@ export default async function AppLayout({
         </div>
         {/*
           Menyu ro'yxati — bandlar ekranga sig'masa ichida skrol bo'ladi,
-          lekin skrolbar chizig'i ko'rinmaydi. `min-h-0` bo'lmasa flex
+          lekin skrolbar chizig'i KO'RINMAYDI. `min-h-0` bo'lmasa flex
           element qisqarmaydi va skrol umuman ishlamaydi.
         */}
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
@@ -69,9 +82,9 @@ export default async function AppLayout({
         </div>
       </aside>
 
-      {/* Asosiy qism */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header ham sticky — skrol qilganda tepada qotib turadi */}
+      {/* Asosiy qism — balandlikni aynan shu ustun belgilaydi */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        {/* Header sticky — skrol qilganda tepada qotib turadi */}
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
           {/* Chap: mobil hamburger + foydalanuvchi nomi */}
           <div className="flex items-center gap-3">
