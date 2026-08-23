@@ -1,0 +1,36 @@
+{
+  "grades": {
+    "title": "Grades",
+    "subtitle": "100-point system. Pick a date, grade type and lesson — the whole class on one screen.",
+    "chooseTitle": "Date and grade type",
+    "chooseHint": "Choosing a class is optional — if set, only its lessons are listed.",
+    "allClasses": "All classes",
+    "apply": "Show",
+    "lessonsTitle": "Lessons",
+    "lessonsHint": "Only lessons you teach are listed.",
+    "sunday": "Sunday is not a school day.",
+    "noLessons": "No lessons found for this day.",
+    "noStudents": "This class has no active students.",
+    "done": "entered",
+    "saved": "Grades saved.",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "placeholder": "0-100",
+    "valueHint": "A grade is a whole number from 0 to 100.",
+    "clearHint": "An empty field means no grade. To remove a previously saved grade, clear the field and save.",
+    "markedCount": "Entered: {marked} / {total}",
+    "average": "average {value}",
+    "type": {
+      "DAILY": "Daily",
+      "CONTROL": "Test",
+      "EXAM": "Exam"
+    },
+    "level": {
+      "excellent": "excellent",
+      "good": "good",
+      "average": "average",
+      "weak": "weak"
+    }
+  }
+}
