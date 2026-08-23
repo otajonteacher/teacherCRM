@@ -27,13 +27,23 @@ import { GradesForm } from "./grades-form";
  * BAHOLAR — OYLIK JURNAL (6-bosqich)
  * ==================================
  *
- * Ish tartibi: sinf + fan + oy tanlanadi → qog'oz jurnalga o'xshash jadval
- * ochiladi (ustunlar — sanalar) → baholar kiritilib bir marta saqlanadi.
+ * Ish tartibi: sinf tanlanadi → qog'oz jurnalga o'xshash jadval ochiladi
+ * (ustunlar — sanalar) → baholar kiritilib bir marta saqlanadi.
  *
- * HAR FAN O'QITUVCHISIGA ALOHIDA JURNAL: fan ro'yxati `gradingLessonScope`
- * bilan olinadi, ya'ni ingliz tili o'qituvchisi faqat ingliz tilini ko'radi,
- * rus tili o'qituvchisi faqat rus tilini. Sinf rahbari bo'lish bu ro'yxatni
- * kengaytirmaydi — baho qoidasi davomatdan farq qiladi.
+ * FAN AVTOMATIK TANLANADI: o'qituvchi ko'p hollarda bitta sinfda bitta fan
+ * o'tadi. Shuning uchun fan ko'rsatilmagan bo'lsa ro'yxatdagi birinchi fan
+ * o'zi olinadi va jurnal darhol ochiladi — "Ko'rsatish" ni ikki marta bosish
+ * kerak emas. Bir nechta fan o'tadigan o'qituvchi ro'yxatdan boshqasini
+ * tanlab qayta ko'rsatadi.
+ *
+ * Avtomatik tanlash xavfsizlikni bo'shashtirmaydi: ro'yxat allaqachon
+ * `gradingLessonScope` bilan filtrlangan, ya'ni unda faqat foydalanuvchining
+ * O'Z fanlari bor. Begona fan ro'yxatga tushmaydi, demak default ham begona
+ * bo'lib qolmaydi.
+ *
+ * HAR FAN O'QITUVCHISIGA ALOHIDA JURNAL: ingliz tili o'qituvchisi faqat
+ * ingliz tilini, rus tili o'qituvchisi faqat rus tilini ko'radi. Sinf rahbari
+ * bo'lish bu ro'yxatni kengaytirmaydi — baho qoidasi davomatdan farq qiladi.
  *
  * Ustunlar dars jadvalidan yasaladi: faqat shu fan darsi bo'ladigan kunlar.
  * Shuning uchun jadval keraksiz kengaymaydi va yakshanba o'z-o'zidan
@@ -115,9 +125,17 @@ export default async function GradesPage({
     ).values()
   );
 
-  const selectedSubject = subjectId
-    ? subjects.find((subject) => subject.id === subjectId)
-    : undefined;
+  /**
+   * Fan tanlash: aniq ko'rsatilgani ustun, aks holda birinchi fan.
+   *
+   * Noto'g'ri yoki begona `subjectId` kelsa ham xavfsiz — `subjects` ro'yxati
+   * doira bilan filtrlangani uchun natija baribir foydalanuvchining o'z fani
+   * bo'ladi.
+   */
+  const selectedSubject =
+    (subjectId
+      ? subjects.find((subject) => subject.id === subjectId)
+      : undefined) ?? subjects[0];
 
   // Ustunlar: shu fan darsi bo'ladigan hafta kunlari → oy ichidagi sanalar.
   const weekdays = selectedSubject
@@ -125,9 +143,7 @@ export default async function GradesPage({
         .filter((lesson) => lesson.subjectId === selectedSubject.id)
         .map((lesson) => lesson.dayOfWeek)
     : [];
-  const dates = selectedSubject
-    ? monthDatesForWeekdays(month, weekdays)
-    : [];
+  const dates = selectedSubject ? monthDatesForWeekdays(month, weekdays) : [];
 
   const students =
     selectedClass && selectedSubject
@@ -166,6 +182,7 @@ export default async function GradesPage({
     month,
     type,
     ...(classId ? { classId } : {}),
+    ...(selectedSubject ? { subjectId: selectedSubject.id } : {}),
   }).toString()}`;
 
   return (
@@ -188,8 +205,9 @@ export default async function GradesPage({
         </CardHeader>
         <CardContent>
           {/*
-            Fan ro'yxati sinfga bog'liq, shuning uchun oddiy GET forma:
-            sinf tanlanib "Ko'rsatish" bosilgach fanlar yangilanadi.
+            Oddiy GET forma. Sinf tanlab bir marta "Ko'rsatish" bosilsa yetadi:
+            fan avtomatik tanlanadi. Fanni o'zgartirish kerak bo'lsa — ro'yxatdan
+            tanlab yana bir marta bosiladi.
           */}
           <form className="grid gap-3 sm:grid-cols-4" method="get">
             <select
@@ -207,11 +225,15 @@ export default async function GradesPage({
 
             <select
               name="subjectId"
-              defaultValue={subjectId ?? ""}
+              defaultValue={selectedSubject?.id ?? ""}
               className={selectClassName}
               disabled={subjects.length === 0}
             >
-              <option value="">{t("chooseSubject")}</option>
+              {/* Fan avtomatik tanlangani uchun bo'sh variant faqat sinf
+                  tanlanmagan holatda kerak bo'ladi. */}
+              {subjects.length === 0 ? (
+                <option value="">{t("chooseSubject")}</option>
+              ) : null}
               {subjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.name}
@@ -282,15 +304,15 @@ export default async function GradesPage({
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : classes.length > 0 ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">
-              {selectedClass ? t("needSubject") : t("needClass")}
+              {selectedClass ? t("noSubjects") : t("needClass")}
             </p>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }
