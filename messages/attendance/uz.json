@@ -1,0 +1,59 @@
+{
+  "attendance": {
+    "title": "Davomat",
+    "subtitle": "Sana va darsni tanlang — butun sinf bitta ekranda belgilanadi.",
+    "chooseTitle": "Sana va sinf",
+    "chooseHint": "Sinfni tanlamasangiz, o'sha kunning barcha darslari ko'rinadi.",
+    "allClasses": "Barcha sinflar",
+    "apply": "Ko'rsatish",
+    "lessonsTitle": "Kunning darslari",
+    "lessonsHint": "Davomat qo'yish uchun darsni tanlang.",
+    "noLessons": "Bu kunga dars kiritilmagan.",
+    "sunday": "Yakshanba — dars kuni emas.",
+    "done": "kiritilgan",
+    "noStudents": "Bu sinfda faol o'quvchi yo'q.",
+    "markAllPresent": "Hammasini keldi deb belgilash",
+    "markedCount": "Belgilandi: {marked} / {total}",
+    "save": "Saqlash",
+    "saving": "Saqlanmoqda...",
+    "saved": "Davomat saqlandi.",
+    "cancel": "Bekor qilish",
+    "openJournal": "Jurnalni ochish",
+    "backToEntry": "Davomat kiritishga qaytish",
+    "journalTitle": "Davomat jurnali",
+    "journalSubtitle": "Haftalik ko'rinish — sinf, foiz va o'tkazib yuborilgan darslar.",
+    "week": "Hafta",
+    "prevWeek": "O'tgan hafta",
+    "nextWeek": "Keyingi hafta",
+    "noClasses": "Sizga tegishli sinf topilmadi.",
+    "student": "O'quvchi",
+    "percent": "Foiz",
+    "missed": "Qoldirgan",
+    "missedValue": "{count} dars",
+    "classPercent": "Sinf davomati",
+    "totalMarks": "Jami belgi",
+    "topAbsentees": "Eng ko'p qoldirganlar",
+    "topAbsenteesHint": "Shu hafta bo'yicha, eng ko'pi bilan 5 o'quvchi.",
+    "noAbsentees": "Bu hafta hech kim dars qoldirmagan.",
+    "status": {
+      "PRESENT": "Keldi",
+      "ABSENT": "Kelmadi",
+      "LATE": "Kechikdi",
+      "EXCUSED": "Sababli"
+    },
+    "statusShort": {
+      "PRESENT": "K",
+      "ABSENT": "Y",
+      "LATE": "Kk",
+      "EXCUSED": "S"
+    },
+    "days": {
+      "1": "Dushanba",
+      "2": "Seshanba",
+      "3": "Chorshanba",
+      "4": "Payshanba",
+      "5": "Juma",
+      "6": "Shanba"
+    }
+  }
+}

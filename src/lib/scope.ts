@@ -116,14 +116,28 @@ export function classScope(user: SessionUser): Prisma.ClassWhereInput {
  * Darslar doirasi.
  * O'qituvchi faqat O'Z darsiga davomat qo'yishi kerak — shu doira buni ta'minlaydi.
  * Ota-ona darsni to'g'ridan-to'g'ri emas, farzandi orqali ko'radi.
+ *
+ * 5-bosqich tuzatishi: sinf rahbari ham o'z sinfining BARCHA darslariga
+ * yetishi kerak. Amalda davomatni ko'pincha sinf rahbari yuritadi, lekin u
+ * har bir fanni o'zi o'qitmaydi. Ilgari faqat `teacher: { userId }` shart
+ * bor edi va sinf rahbari o'z sinfidagi boshqa fanning darsiga davomat
+ * qo'ya olmasdi. `classScope`/`studentScope` allaqachon shu mantiqda
+ * ishlaydi, endi `lessonScope` ham ularga mos keladi.
  */
 export function lessonScope(user: SessionUser): Prisma.LessonWhereInput {
   switch (user.role) {
     case "ADMIN":
       return {};
 
-    case "TEACHER":
-      return { teacher: { userId: requireUserId(user) } };
+    case "TEACHER": {
+      const userId = requireUserId(user);
+      return {
+        OR: [
+          { teacher: { userId } },
+          { class: { homeroomTeacher: { userId } } },
+        ],
+      };
+    }
 
     case "PARENT":
       return {

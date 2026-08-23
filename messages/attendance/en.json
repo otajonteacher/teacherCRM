@@ -1,0 +1,59 @@
+{
+  "attendance": {
+    "title": "Attendance",
+    "subtitle": "Pick a date and lesson — mark the whole class on one screen.",
+    "chooseTitle": "Date and class",
+    "chooseHint": "If no class is selected, all lessons of that day are shown.",
+    "allClasses": "All classes",
+    "apply": "Show",
+    "lessonsTitle": "Lessons of the day",
+    "lessonsHint": "Select a lesson to mark attendance.",
+    "noLessons": "No lessons scheduled for this day.",
+    "sunday": "Sunday is not a school day.",
+    "done": "marked",
+    "noStudents": "No active students in this class.",
+    "markAllPresent": "Mark everyone present",
+    "markedCount": "Marked: {marked} / {total}",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Attendance saved.",
+    "cancel": "Cancel",
+    "openJournal": "Open journal",
+    "backToEntry": "Back to marking",
+    "journalTitle": "Attendance journal",
+    "journalSubtitle": "Weekly view — class, percentages and missed lessons.",
+    "week": "Week",
+    "prevWeek": "Previous week",
+    "nextWeek": "Next week",
+    "noClasses": "No classes available to you.",
+    "student": "Student",
+    "percent": "Percent",
+    "missed": "Missed",
+    "missedValue": "{count} lessons",
+    "classPercent": "Class attendance",
+    "totalMarks": "Total marks",
+    "topAbsentees": "Most missed lessons",
+    "topAbsenteesHint": "For this week, up to 5 students.",
+    "noAbsentees": "No missed lessons this week.",
+    "status": {
+      "PRESENT": "Present",
+      "ABSENT": "Absent",
+      "LATE": "Late",
+      "EXCUSED": "Excused"
+    },
+    "statusShort": {
+      "PRESENT": "P",
+      "ABSENT": "A",
+      "LATE": "L",
+      "EXCUSED": "E"
+    },
+    "days": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    }
+  }
+}
