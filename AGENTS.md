@@ -10,18 +10,24 @@ Xususiy maktab uchun to'liq CRM tizimi: o'quvchi/o'qituvchi bazasi, sinf va dars
 jadvali, davomat, baholar, jarima ball, choraklik reyting, to'lovlar, hisobotlar,
 SMS xabarnoma va AI modullari (test generatori, o'quvchi tahlili).
 
-Texnik topshiriq (TZ) Notion'da saqlanadi. Uning **qisqartmasi repoda**:
-`docs/00-tz-qisqacha.md`. Agar Notion'ga kirish bo'lmasa, shu fayl yagona
-haqiqat manbai sifatida ishlatiladi.
+Texnik topshiriq (TZ) Notion'da saqlanadi, lekin **to'liq nusxasi repoda**:
+`docs/tz/`. Notion'ga kirish bo'lmasa, shu fayllar yagona haqiqat manbai
+sifatida ishlatiladi.
 
 ## 2. Hujjatlarni o'qish tartibi
 
 | Fayl | Nima uchun |
 | --- | --- |
-| `docs/00-tz-qisqacha.md` | TZ qisqartmasi: rollar, RBAC matritsasi, 15 bosqichli roadmap |
-| `docs/01-loyiha-holati.md` | **Hozirgi holat:** nima bitgan, qaysi PR'lar, qaysi shox |
+| `docs/00-tz-qisqacha.md` | TZ qisqartmasi — tez kirish uchun (rollar, RBAC, roadmap) |
+| `docs/tz/01-umumiy-va-funksional.md` | **To'liq TZ, 1–3-bo'lim:** maqsad, scope, atamalar, RBAC matritsasi, barcha funksional talablar (auth, o'quvchi, o'qituvchi, jadval, davomat, baho, reyting, jarima, to'lov, dashboard, SMS, i18n, import/eksport) |
+| `docs/tz/02-ai-va-texnik.md` | **To'liq TZ, 4–11-bo'lim:** test moduli va format standarti, AI spetsifikatsiyasi, NFR, arxitektura, ERD va entitilar, 15 bosqichli roadmap, DoD, xatarlar, kelajak rejalari |
+| `docs/01-loyiha-holati.md` | **Hozirgi holat:** nima bitgan, qaysi PR'lar, baza holati, papka tuzilishi |
 | `docs/02-konvensiyalar.md` | Kod yozish qoidalari, naqshlar, oldin yo'l qo'yilgan xatolar |
 | `docs/03-keyingi-ishlar.md` | Keyingi bosqich rejasi, ochiq qarorlar, audit ro'yxati |
+
+Tavsiya: `00-tz-qisqacha.md` → `01-loyiha-holati.md` → `02-konvensiyalar.md` →
+`03-keyingi-ishlar.md` tartibida o'qing; aniq talab kerak bo'lganda `docs/tz/`
+fayllaridan tegishli bo'limni oching.
 
 ## 3. Ish jarayoni (MAJBURIY)
 
@@ -33,6 +39,8 @@ haqiqat manbai sifatida ishlatiladi.
 4. **Merge'ni faqat loyiha egasi bosadi.** Agent hech qachon o'zi merge qilmaydi.
 5. Katta o'zgarish uchun qo'shimcha tushuntiruvchi hujjat yoziladi.
 6. Commit xabarlari: `feat(scope): ...`, `fix(scope): ...` — o'zbek tilida izoh.
+7. Bosqich tugagach `docs/01-loyiha-holati.md` va `docs/03-keyingi-ishlar.md`
+   yangilanadi — shunda bilim chatda emas, repoda saqlanadi.
 
 ## 4. Egasi qanday test qiladi
 
