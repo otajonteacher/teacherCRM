@@ -1,4 +1,4 @@
-# Loyiha holati (oxirgi yangilash: 5-bosqich boshlanishidan oldin)
+# Loyiha holati (oxirgi yangilash: 5-bosqich tugagandan keyin)
 
 ## 1. Shoxlar
 
@@ -11,6 +11,8 @@
 Yangi ish boshlaganda: `create_branch(from_branch = ishchi shox)`.
 
 ## 2. Bosqichlar holati
+
+**Bajarilgan: 5 / 15.** Keyingi vazifa — **6-bosqich: baholar va reyting**.
 
 ### 1–2-bosqich: poydevor + auth/RBAC ✅
 
@@ -42,16 +44,44 @@ Yangi ish boshlaganda: `create_branch(from_branch = ishchi shox)`.
   (`src/lib/lessons.ts` + bazada `@@unique`).
 - **Sinflarni Excel'dan import** (`src/lib/class-imports.ts`, `/classes/import`).
 
+### 5-bosqich: davomat ✅
+
+- **`/attendance`** — tezkor kiritish: sana → dars → butun sinf bitta ekranda,
+  har o'quvchida 4 tugma (Keldi / Kelmadi / Kechikdi / Sababli),
+  **"Hammasini keldi deb belgilash"**, bitta `Saqlash`.
+- **`/attendance/journal`** — haftalik matritsa (o'quvchi × dushanba–shanba),
+  katakda kunning eng "og'ir" holati, o'ngda foiz va qoldirgan darslar,
+  sinf bo'yicha umumiy foiz va eng ko'p qoldirganlar (top-5).
+- **`src/lib/attendance.ts`** — zod sxema, holatlar, foiz hisobi, sana yordamchilari.
+  Barcha sana hisobi **UTC** da (`@db.Date` bilan mos kelishi uchun).
+- Saqlash **idempotent**: `@@unique([studentId, lessonId, date])` + `upsert`,
+  hammasi bitta `$transaction` ichida. Yarim to'ldirib saqlash mumkin.
+- Foiz kelishuvi: `(Keldi + Kechikdi) / jami`. Belgi bo'lmasa `0%` emas, `—`.
+- **`lessonScope` tuzatildi:** sinf rahbari o'zi o'qitmaydigan fanga ham davomat
+  qo'yadi (`OR: [{ teacher }, { class: { homeroomTeacher } }]`).
+- Xavfsizlik: `assertCanAccessLesson` + **sinf tarkibi filtri** (forma
+  `entry:<studentId>` maydonlari yuborilgani uchun begona ID lar serverda
+  tashlab yuboriladi), `PARENT` avtomatik jurnalga yo'naltiriladi (faqat
+  o'qish), `ACCOUNTANT` kira olmaydi, har bir saqlash audit'ga yoziladi.
+- Sababsiz kelmagan o'quvchi uchun `Message` jadvaliga `QUEUED` SMS yoziladi
+  (bir xil matn takrorlanmaydi). Provayder 10-bosqichda ulanadi.
+- Tarjimalar **alohida fayl**: `messages/attendance/{uz,ru,en}.json`,
+  `src/i18n/request.ts` ikki manbani birlashtiradi — katta JSON fayllarga
+  tegilmadi. **Keyingi modullar uchun namuna shu.**
+
 ## 3. Merge qilingan PR'lar (qisqa tarix)
 
 - **#2–#32** — poydevor, auth, xavfsizlik audit tuzatishlari, o'quvchi/o'qituvchi
   CRUD, Excel import, typecheck tuzatishlari, Edge-runtime login tuzatishi.
-- **#33** — navbar (sidebar) scroll tuzatishi: sidebar alohida scroll bo'ladi,
-  butun sahifa qimirlamaydi, scrollbar ko'rinmaydi.
+- **#33** — navbar (sidebar) scroll tuzatishi.
 - **#34** — 4-bosqich: akademik poydevor + sinflar CRUD + haftalik jadval.
 - **#35** — `useFormState` + `redirectNever` muammosi: 5 formada `state?.error`.
 - **#36** — jadvalda "+" bilan dars qo'shish; sinf formasida joriy o'quv yili.
 - **#37** — sinflarni Excel'dan import.
+- **#38** — **5-bosqich: davomat moduli.**
+- **#39** — layout tuzatishi: ikkita skrolbar va sahifa oxiridagi bo'sh maydon.
+  Yagona skrol — sahifaning o'zi; yon menyu va header `sticky`; yon menyu
+  skrolbari ko'rinmaydi (`no-scrollbar`).
 
 **#1** (`ishchi shox` → `main`) hali **ochiq** — ishga tushirishdan oldin merge qilinadi.
 
@@ -61,13 +91,14 @@ Yangi ish boshlaganda: `create_branch(from_branch = ishchi shox)`.
 ya'ni keyingi bosqichlar uchun jadvallar allaqachon mavjud:
 
 - Tayyor va ishlatilayotgan: `User`, `Teacher`, `Guardian`, `Student`, `Class`,
-  `Subject`, `AcademicYear`, `Quarter`, `LessonPeriod`, `Lesson`, `AuditLog`.
-- Tayyor, lekin hali interfeysi yo'q: **`Attendance`**, `Grade`,
-  `PenaltyCriterion`, `Penalty`, `Contract`, `Invoice`, `Payment`, `Message`,
+  `Subject`, `AcademicYear`, `Quarter`, `LessonPeriod`, `Lesson`, `Attendance`,
+  `AuditLog`.
+- Tayyor, lekin hali interfeysi yo'q: `Grade`, `PenaltyCriterion`, `Penalty`,
+  `Contract`, `Invoice`, `Payment`, `Message` (qismán — davomat SMS navbati),
   `Test`, `TestResult`.
 
-> Shu sababli 5-bosqich (davomat) uchun **sxema o'zgartirish kerak emas** —
-> `Attendance` modeli `@@unique([studentId, lessonId, date])` bilan tayyor.
+> **6-bosqich uchun ham sxema o'zgarishi kutilmaydi** — `Grade` va `Quarter`
+> modellari tayyor. Faqat reyting sozlamasi uchun joy kerak bo'lishi mumkin.
 
 Migratsiya tarixi hali boshlanmagan: hozircha `npx prisma db push` ishlatiladi.
 `npx prisma migrate dev --name init` qilish navbatda turadi.
@@ -77,27 +108,44 @@ Migratsiya tarixi hali boshlanmagan: hozircha `npx prisma db push` ishlatiladi.
 ```
 prisma/schema.prisma
 messages/{uz,ru,en}.json        # KATTA fayllar — ehtiyot bo'ling
+messages/attendance/{uz,ru,en}.json   # modul bo'yicha alohida tarjima (NAMUNA)
 src/i18n/{config,navigation,request}.ts
 src/components/ui/             # button, card, input, label, sheet
 src/components/import-wizard.tsx
 src/components/nav-config.ts
+src/components/sidebar.tsx
 src/lib/                       # quyida
 src/app/[locale]/(app)/        # sahifalar: students, teachers, subjects,
-                               # academic-years, lesson-periods, classes, schedule
+                               # academic-years, lesson-periods, classes,
+                               # schedule, attendance (+ attendance/journal)
 src/app/api/import-template/[entity]/route.ts
 ```
 
-`src/lib/` fayllari: `academics.ts`, `audit.ts`, `auth-guard.ts`, `class-imports.ts`,
-`classes.ts`, `db.ts`, `env.ts`, `excel.ts`, `import-guards.ts`, `imports.ts`,
-`lessons.ts`, `logger.ts`, `password.ts`, `rate-limit.ts`, `rbac.ts`,
-`safe-action.ts`, `scope.ts`, `students.ts`, `teachers.ts`, `test-questions.ts`,
-`utils.ts`.
+`src/lib/` fayllari: `academics.ts`, `attendance.ts`, `audit.ts`, `auth-guard.ts`,
+`class-imports.ts`, `classes.ts`, `db.ts`, `env.ts`, `excel.ts`,
+`import-guards.ts`, `imports.ts`, `lessons.ts`, `logger.ts`, `password.ts`,
+`rate-limit.ts`, `rbac.ts`, `safe-action.ts`, `scope.ts`, `students.ts`,
+`teachers.ts`, `test-questions.ts`, `utils.ts`.
 
 ## 6. i18n nomkosmalari
 
 `common`, `login`, `changePassword`, `forbidden`, `errors`, `notFound`, `roles`,
 `nav` (+ `groups`), `dashboard`, `students`, `teachers`, `subjects`,
-`academicYears`, `lessonPeriods`, `classes`, `schedule` (+ `days`), `import`.
+`academicYears`, `lessonPeriods`, `classes`, `schedule` (+ `days`), `import`
+— bularning hammasi `messages/{uz,ru,en}.json` ichida.
 
-Uchta fayl (uz/ru/en) **to'liq kalit parragiga ega** — biri o'zgarsa uchalasi
-o'zgaradi.
+`attendance` — alohida faylda: `messages/attendance/{uz,ru,en}.json`.
+
+Asosiy uchta fayl (uz/ru/en) **to'liq kalit parragiga ega** — biri o'zgarsa
+uchalasi o'zgaradi. Yangi modul qo'shganda **alohida fayl** usulini tanlang.
+
+## 7. Layout qoidasi (PR #39 dan keyin)
+
+- **Yagona ko'rinadigan skrol** — sahifaning o'zi (brauzerning o'ng chetidagi).
+- Kontent maydonida (`main`) **ichki skrol konteyneri yaratilmaydi**.
+- Yon menyu va header `position: sticky` bilan ushlab turiladi — sticky
+  qo'shimcha skrolbar yaratmaydi.
+- Yon menyuning ichki skroli bor, lekin skrolbari `no-scrollbar` bilan
+  **yashirilgan** — buni o'zgartirmang.
+- `min-h-screen` **o'ng ustunda** turadi (tashqi flex konteynerda emas) — aks
+  holda sahifa oxirida bo'sh oq maydon paydo bo'ladi.
