@@ -2,26 +2,49 @@
 
 ## 1. 6-bosqich: BAHOLAR va REYTING — keyingi vazifa
 
-`Grade` va `Quarter` modellari sxemada tayyor. Asosiy ishlar:
+`Grade` va `Quarter` modellari sxemada tayyor.
 
-1. **`src/lib/grades.ts`** — zod sxemalar, baho oralig'i validatsiyasi,
-   o'rtacha ball hisobi. Davomat moduli (`src/lib/attendance.ts`) tuzilishini
-   namuna qilib oling.
-2. **Baho qo'yish ekrani** — davomat bilan **bir xil naqsh**: sana → dars →
-   butun sinf bitta ekranda, bitta `Saqlash`, `upsert` bilan idempotent.
+### 1.1. Kelishilgan qarorlar (egasi tasdiqlagan — muhokama yopilgan)
+
+| Mavzu | Qaror |
+| --- | --- |
+| **Baho tizimi** | **Faqat 100 ballik.** 5 ballik variant **qilinmaydi**, sozlama ham kerak emas — kodni sodda tuting |
+| **Kim baho qo'yadi** | **Faqat fan o'qituvchisi**, faqat **o'zi dars beradigan** darsga. Sinf rahbari boshqa fandan baho qo'ya **olmaydi** |
+| **ADMIN** | **Hamma narsaga to'liq ruxsat** — baho qo'yadi, o'zgartiradi, o'chiradi. Cheklov yo'q |
+| `ACCOUNTANT`, `PARENT` | Baho **qo'ya olmaydi**. `PARENT` faqat o'z farzandining bahosini **ko'radi** |
+
+> **Diqqat — davomatdan FARQLI qoida!** Davomatda sinf rahbari o'zi
+> o'qitmaydigan fanga ham davomat qo'ya oladi (`lessonScope` da
+> `OR: [{ teacher }, { class: { homeroomTeacher } }]`). **Bahoda bu qoida
+> ishlamaydi.** `gradeScope` / baho qo'yish action'i uchun `TEACHER` sharti
+> faqat `{ lesson: { teacher: { userId } } }` bo'lishi kerak — homeroom shoxi
+> qo'shilmaydi. Buni chalkashtirib yuborish oson, ehtiyot bo'ling.
+
+### 1.2. 100 ballik tizim tafsilotlari
+
+- Baho qiymati: butun son, **0–100**. zod: `z.number().int().min(0).max(100)`.
+- Bazada `Grade.value` — `Int`. Kasr ball yo'q.
+- Interfeysda tugma emas, **raqam kiritish maydoni** (davomatdagi 4 tugmadan
+  farqli). Klaviaturadan tez kiritish uchun `inputMode="numeric"`.
+- O'rtacha ball ko'rsatilganda 1 xona kasr (masalan `86.4`).
+- Harf/so'z bilan izoh kerak bo'lsa faqat **ko'rsatishda** hisoblanadi
+  (masalan 86–100 “a'lo”), bazada saqlanmaydi.
+
+### 1.3. Qilinadigan ishlar
+
+1. **`src/lib/grades.ts`** — zod sxemalar (0–100), o'rtacha ball hisobi,
+   chorak bo'yicha yig'ish. Davomat moduli (`src/lib/attendance.ts`)
+   tuzilishini namuna qilib oling.
+2. **Baho qo'yish ekrani** — davomat bilan bir xil naqsh: sana → dars → butun
+   sinf bitta ekranda, bitta `Saqlash`, `upsert` bilan idempotent.
+   **Dars ro'yxati faqat o'qituvchining o'z darslaridan** iborat bo'ladi
+   (ADMIN uchun hammasi).
 3. **Reyting** — choraklik. Formula **sozlanadigan** bo'lishi kerak:
    o'rtacha ball − jarima koeffitsienti + test natijasi.
 4. **Xavfsizlik** — `AGENTS.md` 0-bo'limidagi majburiy ro'yxat bo'yicha:
-   `gradeScope`, `assertCanAccessGrade`, sinf tarkibi filtri, audit.
-   O'qituvchi **faqat o'zi dars beradigan fandan** baho qo'yadi — sinf rahbari
-   bo'lgani uchun boshqa fandan baho qo'ya olmasligi kerak (davomatdan
-   **farqli** qoida! davomatni sinf rahbari yuritadi, bahoni fan o'qituvchisi).
+   `gradeScope`, `assertCanAccessGrade`, sinf tarkibi filtri (forma begona
+   `studentId` yuborsa tashlanadi), audit. `ADMIN` uchun bo'sh filtr.
 5. **Tarjimalar** — `messages/grades/{uz,ru,en}.json` (alohida fayl usuli).
-
-### Ochiq qaror: baho tizimi
-
-5 balli / 100 balli — sozlama orqali. **6-bosqich boshida egasi bilan
-aniqlanadi.**
 
 ## 2. Alohida "Jurnal" menyusi — egasining yangi talabi
 
@@ -42,8 +65,8 @@ sahifada bitta kunning hamma darsi va hamma bolaning bahosi turadi.
 - Kirishda: **sinf tanlanadi** + **sana tanlanadi** (sukut bo'yicha bugun).
 - Chiqadigan ko'rinish: **matritsa** — qatorlar: o'quvchilar; ustunlar: o'sha
   kunning **hamma darslari** (jadvaldan olinadi, dars soati tartibida).
-- Har bir katakda: **baho** (bir darsda bir necha baho bo'lishi mumkin —
-  hammasi ko'rinadi) **va davomat holati** (masalan `5` yoki `Y` / `4, 5`).
+- Har bir katakda: **baho** (0–100; bir darsda bir necha baho bo'lishi mumkin —
+  hammasi ko'rinadi) **va davomat holati** (masalan `85` yoki `Y` / `85, 90`).
 - Sana o'zgartirilsa (oldingi kun) — o'sha kunning jadvali va yozuvlari chiqadi.
 - O'ng chetda: o'quvchining o'sha kunlik o'rtacha bahosi.
 - Faqat **o'qish** uchun — bu ko'rish/chop etish ekrani, kiritish emas.
@@ -63,6 +86,7 @@ Egasi bilan kelishilgan: **talab TZ ga yozib qo'yildi, oxirida bajariladi.**
 - Doira: `classScope` + `studentScope` + `gradeScope` + `attendanceScope`.
   `PARENT` kirsa **faqat o'z farzandining qatori** ko'rinishi kerak — butun
   sinf jurnali ota-onaga ko'rsatilmaydi (bu maxfiylik talabi, muhim!).
+- `ADMIN` — hamma sinf, hamma sana, cheklovsiz.
 - `ACCOUNTANT` — kira olmaydi.
 - Sana `searchParams` dan keladi → regex bilan tekshiriladi (`DATE_TEXT_PATTERN`).
 - N+1 so'rovdan saqlanish: bir kunlik baholar va davomat **bitta-bitta**
@@ -76,7 +100,8 @@ Egasi bilan kelishilgan: **talab TZ ga yozib qo'yildi, oxirida bajariladi.**
 | TZ 3.1.1 — sessiya bekor qilish | **B varianti:** har bir yozuv amali va kritik server action'da `isActive` tekshiriladi. Keyinroq qo'shiladi |
 | TZ 3.14.6 — eksport | O'quvchi/o'qituvchi ro'yxatini `.xlsx` ga eksport; ustunlar **import shabloni bilan bir xil** |
 | O'quvchi formasi | Qayta chizish kerak (UX yaxshilash) |
-| Baho tizimi | 5 balli / 100 balli — sozlama orqali (6-bosqichda hal qilinadi) |
+| Baho tizimi | ✅ **Yopildi: faqat 100 ballik** |
+| Baho qo'yish huquqi | ✅ **Yopildi: faqat fan o'qituvchisi + ADMIN** |
 | Jurnal (`/journal`) | Alohida menyu, kunlik baho+davomat matritsasi — **6-bosqichdan keyin** |
 
 ## 4. Davomat moduli — qolgan kichik ishlar

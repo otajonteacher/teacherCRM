@@ -16,7 +16,28 @@ manzil, ota-ona telefoni), **baho va intizom yozuvlari**, hamda **to'lov
 ma'lumotlari** saqlanadi. Bir dona ochiq qolgan tekshiruv butun bazani oshkor
 qilishi mumkin.
 
-### Har bir yangi sahifa/action uchun MAJBURIY ro'yxat
+### 0.1. Rollar bo'yicha asosiy qoida
+
+| Rol | Qoida |
+| --- | --- |
+| **`ADMIN`** | **Hamma narsaga to'liq ruxsat — har doim, hamma sahifada, hamma amalda.** Egasining qat'iy talabi. Yangi modul yozganda admin uchun hech qanday cheklov qo'yilmaydi |
+| `TEACHER` | Faqat o'z doirasi: o'zi dars beradigan darslar + sinf rahbari bo'lgan sinfi |
+| `ACCOUNTANT` | Faqat moliya. Akademik ma'lumotga (baho, davomat, jurnal) kira olmaydi |
+| `PARENT` | Faqat o'z farzandi, faqat **o'qish** |
+| Notanish rol | **Hech narsa** (`MATCH_NOTHING`) — fail-closed |
+
+**ADMIN implementatsiyasi.** Bu qoida allaqachon ikki joyda mavjud va shunday
+qolishi kerak:
+
+- `src/lib/rbac.ts` — `isPathAllowed`: `ADMIN` uchun **doim `true`**;
+- `src/lib/scope.ts` — har bir `xScope(user)` funksiyasi `ADMIN` uchun **bo'sh
+  filtr** (`{}`) qaytaradi, ya'ni cheklov yo'q.
+
+Yangi doira funksiyasi yozganda birinchi shart doim `ADMIN` bo'lishi kerak.
+Ammo **ADMIN ham audit'dan qutulmaydi** — uning har bir amali `logAudit` bilan
+yoziladi (kim, qachon, nimani o'zgartirgani bilinishi kerak).
+
+### 0.2. Har bir yangi sahifa/action uchun MAJBURIY ro'yxat
 
 Yangi kod yozganda quyidagilarning HAMMASI bajarilgan bo'lishi kerak. Bittasi
 qolib ketsa — ish tugallanmagan hisoblanadi.
@@ -30,11 +51,11 @@ qolib ketsa — ish tugallanmagan hisoblanadi.
 | 5 | **Kirish validatsiyasi** | zod sxema. `searchParams` ham ishonchsiz manba — regex/enum bilan tekshiriladi |
 | 6 | **Begona ID** | Forma dinamik maydon nomlari (`entry:<id>` kabi) yuborsa, serverda tegishlilik qayta tekshiriladi |
 | 7 | **Yozuv amali** | Faqat kerakli rollar. `ACCOUNTANT` o'quvchini ko'radi, lekin **yozmaydi**; `PARENT` faqat ko'radi |
-| 8 | **Audit** | Har bir yozuv/o'zgartirish/o'chirish `logAudit` bilan yoziladi |
+| 8 | **Audit** | Har bir yozuv/o'zgartirish/o'chirish `logAudit` bilan yoziladi (ADMIN ham) |
 | 9 | **Xato xabari** | "Topilmadi" va "ruxsat yo'q" **bir xil** javob beradi — aks holda ID larni sanab chiqish (enumeration) mumkin bo'ladi |
 | 10 | **Maxfiy ma'lumot** | Parol, token, telefon log'ga yozilmaydi (`redactMeta`, `maskIdentifier`) |
 
-### Doim yodda tutiladigan hujum ko'rinishlari
+### 0.3. Doim yodda tutiladigan hujum ko'rinishlari
 
 - **IDOR** — URL dagi ID ni boshqasiga o'zgartirib begona bolaning ma'lumotini ochish.
 - **Server action'ni to'g'ridan-to'g'ri chaqirish** — hujumchi interfeysdan
