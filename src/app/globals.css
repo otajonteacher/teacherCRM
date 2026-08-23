@@ -53,39 +53,19 @@
   * {
     @apply border-border;
   }
-
-  /*
-   * IKKITA SKROLBAR MUAMMOSINING ILDIZI
-   * ===================================
-   * Ilgari `html` ning balandligi belgilanmagan, `body` da esa `min-h-screen`
-   * (ya'ni `100vh`) turgan edi. Ilova qobig'i o'z navbatida `100dvh` ishlatdi.
-   * `vh` va `dvh` bir xil qiymat EMAS — brauzer paneli, gorizontal skrolbar
-   * yoki masshtab (zoom) tufayli ular bir necha piksel farq qiladi. Natijada
-   * hujjat viewport'dan sal balandroq bo'lib, sahifaning O'ZI ham skrol
-   * bo'ladigan holga kelgan. Ekranda ikkita skrolbar paydo bo'lgani shundan:
-   * biri — hujjatning, ikkinchisi — kontent konteynerining.
-   *
-   * Yechim: `html` va `body` ni aniq `height: 100%` bilan qulflaymiz va
-   * hamma joyda foizga o'tamiz (`h-full`). Shunda `vh`/`dvh` aralashmasi
-   * umuman qolmaydi.
-   *
-   * MUHIM: bu yerda `overflow: hidden` QO'YILMAYDI. Sababi login,
-   * change-password va forbidden sahifalari `body` dan tashqariga chiqishi
-   * mumkin (kichik ekranda) — ularda oddiy sahifa skroli ishlashi kerak.
-   * Skrolni qulflash faqat ilova qobig'ining o'z vazifasi.
-   */
-  html,
-  body {
-    height: 100%;
-  }
-
   body {
     @apply bg-background text-foreground;
   }
 }
 
 @layer utilities {
-  /* Scroll ishlaydi, lekin scrollbar butunlay ko'rinmaydi */
+  /*
+   * Skrol ishlaydi, lekin skrolbar ko'rinmaydi (yon menyu uchun).
+   *
+   * Yon menyu bandlari ekranga sig'masa ham skrolbar chizig'i chiqmaydi —
+   * menyu toza ko'rinishda qoladi. Ko'rinadigan skrolbar faqat sahifaning
+   * asosiy (o'ng chetdagi) skroli bo'lishi kerak.
+   */
   .no-scrollbar {
     -ms-overflow-style: none; /* IE / eski Edge */
     scrollbar-width: none; /* Firefox */
@@ -94,34 +74,5 @@
     width: 0;
     height: 0;
     display: none; /* Chrome / Safari / Edge */
-  }
-
-  /*
-   * Ingichka, bezovta qilmaydigan skrolbar.
-   *
-   * Nima uchun `no-scrollbar` emas: skrolbar butunlay yashirilganda
-   * foydalanuvchi ro'yxatning davomi borligini bilmaydi. Ingichka skrolbar
-   * joy egallamaydi, lekin "pastda yana bor" degan ishorani beradi.
-   */
-  .thin-scrollbar {
-    scrollbar-width: thin; /* Firefox */
-    scrollbar-color: hsl(var(--border)) transparent;
-  }
-  .thin-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  .thin-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .thin-scrollbar::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
-    border-radius: 9999px;
-    /* Shaffof ramka — "tayoqcha" ingichkaroq ko'rinadi */
-    border: 2px solid transparent;
-    background-clip: content-box;
-  }
-  .thin-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.5);
   }
 }

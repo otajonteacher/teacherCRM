@@ -31,13 +31,12 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       {/*
-        `min-h-screen` (100vh) emas, `h-full` (100%).
-        Sababi: ilova qobig'i ham foizga o'tdi va endi `vh`/`dvh` farqi
-        tufayli hujjat viewport'dan balandroq bo'lib qolmaydi — ya'ni
-        ikkinchi (keraksiz) skrolbar paydo bo'lmaydi.
-        Batafsil izoh: src/app/globals.css.
+        `min-h-screen` — sahifa kamida ekran balandligida, lekin kontent
+        katta bo'lsa erkin o'sadi va ODDIY sahifa skroli ishlaydi.
+        `html`/`body` ga balandlik qulfi yoki `overflow: hidden` QO'YILMAYDI:
+        yagona skrol — sahifaning o'zi.
       */}
-      <body className="h-full bg-background antialiased">
+      <body className="min-h-screen bg-background antialiased">
         <NextIntlClientProvider messages={messages}>
           {children}
         </NextIntlClientProvider>
