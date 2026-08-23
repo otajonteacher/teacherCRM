@@ -27,6 +27,13 @@ import { redirectNever, type SessionUser } from "./auth-guard";
  * Rol notanish yoki ID yo'q bo'lsa — doira HECH NARSANI qaytarmaydi
  * (`{ id: { in: [] } }`). Ya'ni xato holatda ruxsat kengaymaydi, torayadi.
  *
+ * ADMIN QOIDASI
+ * -------------
+ * Egasining qat'iy talabi: ADMIN hamma narsani ko'radi va hamma amalni
+ * bajaradi. Shuning uchun har bir doira funksiyasining BIRINCHI sharti
+ * `ADMIN` bo'lib, bo'sh filtr (`{}`) qaytaradi. Yangi doira yozganda shu
+ * tartib saqlanadi.
+ *
  * Bu fayl "qaysi QATORLAR" savoliga javob beradi.
  * "Qaysi ROL" savoli — src/lib/auth-guard.ts. Ikkisi birga ishlatiladi.
  */
@@ -113,16 +120,14 @@ export function classScope(user: SessionUser): Prisma.ClassWhereInput {
 }
 
 /**
- * Darslar doirasi.
- * O'qituvchi faqat O'Z darsiga davomat qo'yishi kerak — shu doira buni ta'minlaydi.
- * Ota-ona darsni to'g'ridan-to'g'ri emas, farzandi orqali ko'radi.
+ * Darslar doirasi (KO'RISH va DAVOMAT uchun).
  *
  * 5-bosqich tuzatishi: sinf rahbari ham o'z sinfining BARCHA darslariga
  * yetishi kerak. Amalda davomatni ko'pincha sinf rahbari yuritadi, lekin u
- * har bir fanni o'zi o'qitmaydi. Ilgari faqat `teacher: { userId }` shart
- * bor edi va sinf rahbari o'z sinfidagi boshqa fanning darsiga davomat
- * qo'ya olmasdi. `classScope`/`studentScope` allaqachon shu mantiqda
- * ishlaydi, endi `lessonScope` ham ularga mos keladi.
+ * har bir fanni o'zi o'qitmaydi.
+ *
+ * DIQQAT: bu doira BAHO uchun ishlatilmaydi — pastdagi `gradingLessonScope`
+ * ga qaralsin.
  */
 export function lessonScope(user: SessionUser): Prisma.LessonWhereInput {
   switch (user.role) {
@@ -151,6 +156,35 @@ export function lessonScope(user: SessionUser): Prisma.LessonWhereInput {
   }
 }
 
+/**
+ * BAHO QO'YISH uchun darslar doirasi (6-bosqich).
+ *
+ * Egasining qat'iy talabi: bahoni FAQAT FAN O'QITUVCHISI qo'yadi. Sinf
+ * rahbari o'z sinfining boshqa fanidan baho qo'ya OLMAYDI — davomatdan
+ * farqli qoida.
+ *
+ * Shuning uchun bu doira `lessonScope` dan alohida yozilgan va unda
+ * `homeroomTeacher` shoxi ATAYLAB yo'q. Ikkisini birlashtirish yoki bu yerga
+ * homeroom qo'shish — xavfsizlik xatosi hisoblanadi.
+ *
+ * PARENT va ACCOUNTANT bu yerda umuman yo'q → `MATCH_NOTHING` (fail-closed):
+ * ular hech qanday darsga baho qo'ya olmaydi.
+ */
+export function gradingLessonScope(
+  user: SessionUser
+): Prisma.LessonWhereInput {
+  switch (user.role) {
+    case "ADMIN":
+      return {};
+
+    case "TEACHER":
+      return { teacher: { userId: requireUserId(user) } };
+
+    default:
+      return MATCH_NOTHING;
+  }
+}
+
 // Quyidagilar o'quvchi doirasidan kelib chiqadi — mantiq bitta joyda turadi,
 // shuning uchun studentScope o'zgarsa hammasi avtomatik moslashadi.
 
@@ -161,7 +195,13 @@ export function attendanceScope(
   return { student: studentScope(user) };
 }
 
-/** Baholar doirasi. */
+/**
+ * Baholar doirasi (KO'RISH uchun).
+ *
+ * Ko'rish keng: sinf rahbari va ota-ona bahoni ko'rishi kerak. Lekin YOZISH
+ * `gradingLessonScope` bilan cheklanadi. Ko'rish va yozish doirasi bu modulda
+ * ataylab bir xil emas.
+ */
 export function gradeScope(user: SessionUser): Prisma.GradeWhereInput {
   return { student: studentScope(user) };
 }
@@ -249,6 +289,23 @@ export async function assertCanAccessLesson(
 ): Promise<string> {
   const row = await db.lesson.findFirst({
     where: { AND: [{ id: lessonId }, lessonScope(user)] },
+    select: { id: true },
+  });
+  return (await assertExists(row)).id;
+}
+
+/**
+ * SHU DARSGA BAHO QO'YISH huquqini tekshiradi (6-bosqich).
+ *
+ * `assertCanAccessLesson` dan farqi: bu yerda sinf rahbarligi yetarli emas,
+ * faqat fan o'qituvchisining o'zi (yoki ADMIN) o'tadi.
+ */
+export async function assertCanGradeLesson(
+  user: SessionUser,
+  lessonId: string
+): Promise<string> {
+  const row = await db.lesson.findFirst({
+    where: { AND: [{ id: lessonId }, gradingLessonScope(user)] },
     select: { id: true },
   });
   return (await assertExists(row)).id;

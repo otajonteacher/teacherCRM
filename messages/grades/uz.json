@@ -1,0 +1,36 @@
+{
+  "grades": {
+    "title": "Baholar",
+    "subtitle": "100 ballik tizim. Sana, baho turi va darsni tanlab, butun sinfni bir ekranda baholang.",
+    "chooseTitle": "Sana va baho turi",
+    "chooseHint": "Sinfni tanlash ixtiyoriy — tanlansa faqat shu sinf darslari chiqadi.",
+    "allClasses": "Barcha sinflar",
+    "apply": "Ko'rsatish",
+    "lessonsTitle": "Darslar",
+    "lessonsHint": "Faqat o'zingiz dars beradigan darslar ko'rinadi.",
+    "sunday": "Yakshanba — dars kuni emas.",
+    "noLessons": "Bu kunga dars topilmadi.",
+    "noStudents": "Bu sinfda faol o'quvchi yo'q.",
+    "done": "kiritilgan",
+    "saved": "Baholar saqlandi.",
+    "save": "Saqlash",
+    "saving": "Saqlanmoqda...",
+    "cancel": "Bekor qilish",
+    "placeholder": "0-100",
+    "valueHint": "Baho 0 dan 100 gacha butun son.",
+    "clearHint": "Maydonni bo'sh qoldirsangiz baho qo'yilmaydi. Avval qo'yilgan bahoni o'chirish uchun maydonni tozalab, saqlang.",
+    "markedCount": "Kiritildi: {marked} / {total}",
+    "average": "o'rtacha {value}",
+    "type": {
+      "DAILY": "Kundalik",
+      "CONTROL": "Nazorat",
+      "EXAM": "Imtihon"
+    },
+    "level": {
+      "excellent": "a'lo",
+      "good": "yaxshi",
+      "average": "o'rta",
+      "weak": "past"
+    }
+  }
+}

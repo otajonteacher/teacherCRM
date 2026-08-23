@@ -8,6 +8,7 @@ import { locales } from "./config";
  * Tarjimalar bir necha fayldan yig'iladi:
  *   1. messages/<locale>.json            — asosiy fayl (eski bo'limlar)
  *   2. messages/attendance/<locale>.json — davomat bo'limi (5-bosqich)
+ *   3. messages/grades/<locale>.json     — baholar bo'limi (6-bosqich)
  *
  * Nima uchun alohida fayl: asosiy fayl juda kattalashib ketgan va uni to'liq
  * qayta yozish paytida boshqa bo'lim tarjimalari tasodifan yo'qolib qolishi
@@ -17,12 +18,17 @@ import { locales } from "./config";
 export default getRequestConfig(async ({ locale }) => {
   if (!locales.includes(locale as (typeof locales)[number])) notFound();
 
-  const [base, attendance] = await Promise.all([
+  const [base, attendance, grades] = await Promise.all([
     import(`../../messages/${locale}.json`),
     import(`../../messages/attendance/${locale}.json`),
+    import(`../../messages/grades/${locale}.json`),
   ]);
 
   return {
-    messages: { ...base.default, ...attendance.default },
+    messages: {
+      ...base.default,
+      ...attendance.default,
+      ...grades.default,
+    },
   };
 });
