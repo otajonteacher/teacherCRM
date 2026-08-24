@@ -7,6 +7,7 @@ import { redirectNever } from "@/lib/auth-guard";
 import { assertCanAccessLesson } from "@/lib/scope";
 import { toDate, type SaveResult } from "@/lib/academics";
 import { attendanceSaveSchema } from "@/lib/attendance";
+import { queueAbsenceNotices } from "@/lib/absence-notice";
 
 /**
  * DAVOMATNI SAQLASH (5-bosqich)
@@ -23,54 +24,14 @@ import { attendanceSaveSchema } from "@/lib/attendance";
  * ko'rinishida bo'lgani uchun, so'rovni qo'lda yasagan odam begona o'quvchi
  * ID sini qo'shib yuborishi mumkin. Shuning uchun serverda sinf tarkibi
  * bilan solishtiriladi.
+ *
+ * ESLATMA: ota-onaga xabar navbatga qo'yish mantig'i `src/lib/absence-notice.ts`
+ * ga chiqarildi — uni kunlik jurnal ham chaqiradi. Bu fayl `"use server"`
+ * bo'lgani uchun undan yordamchi funksiyani EXPORT qilish mumkin emas:
+ * bunday eksport ochiq HTTP endpoint'ga aylanadi.
  */
 
 export type AttendanceFormState = { error?: string };
-
-/**
- * Sababsiz kelmagan o'quvchi uchun ota-onaga xabar navbatga qo'yiladi.
- *
- * Hozircha faqat `Message` jadvaliga QUEUED holatida yoziladi — haqiqiy
- * yuborish (Eskiz.uz / Play Mobile) 10-bosqichda ulanadi. Shu tufayli
- * davomat moduli bugun ishlaydi, SMS moduli tayyor bo'lganda esa navbatdagi
- * xabarlar o'z-o'zidan jo'natiladi.
- *
- * Takroriy xabar yuborilmasligi uchun bir xil matnli yozuv borligi
- * tekshiriladi — forma qayta saqlansa, ota-ona ikkinchi SMS olmaydi.
- */
-async function queueAbsenceNotices(
-  absentStudentIds: string[],
-  dateText: string
-): Promise<void> {
-  if (absentStudentIds.length === 0) return;
-
-  const students = await db.student.findMany({
-    where: { id: { in: absentStudentIds } },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      guardian: { select: { phone: true } },
-    },
-  });
-
-  for (const student of students) {
-    const phone = student.guardian?.phone?.trim();
-    if (!phone) continue;
-
-    const body = `Hurmatli ota-ona! Farzandingiz ${student.lastName} ${student.firstName} ${dateText} kuni darsda qatnashmadi.`;
-
-    const existing = await db.message.findFirst({
-      where: { studentId: student.id, body },
-      select: { id: true },
-    });
-    if (existing) continue;
-
-    await db.message.create({
-      data: { studentId: student.id, toPhone: phone, body, status: "QUEUED" },
-    });
-  }
-}
 
 const saveAttendanceAction = createAction({
   roles: ["ADMIN", "TEACHER"],
@@ -140,6 +101,7 @@ const saveAttendanceAction = createAction({
     // Locale prefiksisiz — konvensiya bo'yicha.
     revalidatePath("/attendance");
     revalidatePath("/attendance/journal");
+    revalidatePath("/journal");
 
     return { ok: true, id: lesson.id };
   },

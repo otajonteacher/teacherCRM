@@ -36,6 +36,7 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/classes",
     "/schedule",
     "/attendance",
+    "/journal",
     "/grades",
     "/ranking",
     "/penalties",
@@ -59,6 +60,7 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/classes",
     "/schedule",
     "/attendance",
+    "/journal",
     "/grades",
     "/ranking",
     "/penalties",
@@ -75,6 +77,8 @@ export const roleAllowedPaths: Record<Role, string[]> = {
     "/messages",
   ],
 
+  // Jurnal ATAYLAB yo'q: u baho va davomat KIRITISH joyi, ota-ona esa faqat
+  // natijani ko'radi.
   PARENT: [
     "/dashboard",
     "/grades",

@@ -1,0 +1,38 @@
+{
+  "nav": {
+    "journal": "Jurnal"
+  },
+  "journal": {
+    "title": "Jurnal",
+    "subtitle": "Kunlik jurnal: davomat va shu kunning barcha darslari. Faqat o'zingiz o'tadigan dars ustuni ochiq.",
+    "chooseTitle": "Sinf va kunni tanlash",
+    "chooseHint": "Ustunlar shu kundagi dars jadvalidan olinadi. Bir fandan ikki dars bo'lsa ikkinchisi \"Matematika 2\" deb nomlanadi.",
+    "chooseClass": "Sinfni tanlang",
+    "apply": "Ko'rsatish",
+    "needClass": "Jurnalni ko'rish uchun sinfni tanlang.",
+    "noClasses": "Sizga biriktirilgan dars topilmadi. Dars jadvali to'ldirilganini tekshiring. Sinf rahbari bo'lish yetarli emas — bahoni faqat fan o'qituvchisi qo'yadi.",
+    "noLessons": "Bu kunda bu sinfda dars yo'q. Boshqa kunni tanlang.",
+    "noStudents": "Bu sinfda faol o'quvchi topilmadi.",
+    "lessonCount": "Shu kunda {count} dars",
+    "student": "O'quvchi",
+    "attendance": "Davomat",
+    "averageColumn": "O'rtacha",
+    "rankColumn": "O'rin",
+    "topN": "Dastlabki o'rinlar",
+    "gridHint": "Baho: 0–100. Davomat: K, SZ, SL, KCH. Qo'yilgan bahoni ustiga bosib darhol o'zgartirish mumkin.",
+    "lockedTooltip": "Bu siz o'tadigan fan emas",
+    "autoPresentHint": "Baho qo'yilgan o'quvchi avtomatik \"keldi\" (K) deb belgilanadi.",
+    "readOnly": "Bu kunda bu sinfda darsingiz yo'q — jurnal faqat ko'rish uchun.",
+    "legendTitle": "Belgilar",
+    "legend": {
+      "PRESENT": "keldi",
+      "ABSENT": "kelmadi (sababsiz)",
+      "EXCUSED": "kelmadi (sababli)",
+      "LATE": "kechikdi"
+    },
+    "save": "Saqlash",
+    "saving": "Saqlanmoqda...",
+    "cancel": "Bekor qilish",
+    "saved": "Jurnal saqlandi."
+  }
+}
