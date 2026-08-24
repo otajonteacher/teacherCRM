@@ -1,11 +1,12 @@
 {
   "grades": {
     "title": "Baholar",
-    "subtitle": "O'zlashtirish hisoboti va reyting. 100 ballik tizim.",
-    "readOnlyNotice": "Bu sahifada baho qo'yilmaydi. Baho faqat fan o'qituvchisi tomonidan Jurnalda kiritiladi.",
+    "subtitle": "O'zlashtirish hisoboti — faqat ko'rish uchun.",
+    "readOnlyNotice": "Bu sahifada baho qo'yilmaydi. Baho faqat \"Jurnal\" sahifasida fan o'qituvchisi tomonidan kiritiladi.",
     "chooseTitle": "Hisobotni tanlash",
-    "chooseHint": "Bir kunlik ko'rinishda ustunlar — shu kunning darslari. Bir haftalik ko'rinishda ustunlar — fanlar, katakchada esa kunlik baholar va fan o'rtachasi.",
+    "chooseHint": "Bir kunlik ko'rinishda ustunlar — shu kunning darslari. Bir haftalik ko'rinishda har fan ostida haftaning kunlari alohida ustun bo'lib chiqadi.",
     "chooseClass": "Sinfni tanlang",
+    "classRequired": "Sinf tanlanishi shart.",
     "dateLabel": "Sana",
     "modeLabel": "Ko'rinish",
     "modeDay": "Bir kunlik",
@@ -15,12 +16,13 @@
     "topN": "Dastlabki o'rinlar",
     "topNHint": "Masalan 7 kiritilsa eng yuqori 7 o'rin belgilanadi. Bo'sh qoldirilsa butun sinf bo'yicha o'rin chiqadi.",
     "dayHint": "Shu kundagi barcha fan baholari va sinf bo'yicha o'rin.",
-    "weekHint": "Dushanbadan shanbagacha. Har bir fan katakchasida kunlik baholar va fan o'rtachasi ko'rsatilgan.",
+    "weekHint": "Dushanbadan shanbagacha. Har fan ostida kunlar alohida ustun, oxirida fan bo'yicha o'rtacha.",
+    "subjectAverage": "O'rtacha",
     "editInJournal": "Jurnalda tahrirlash",
     "needClass": "Hisobotni ko'rish uchun sinfni tanlang.",
-    "noClasses": "Sizga biriktirilgan sinf topilmadi.",
-    "noLessons": "Bu sinf uchun dars jadvali topilmadi. Avval dars jadvalini to'ldiring.",
-    "noStudents": "Bu sinfda faol o'quvchi topilmadi.",
+    "noClasses": "Sizga tegishli sinf yo'q.",
+    "noLessons": "Bu davr uchun dars jadvalga kiritilmagan.",
+    "noStudents": "Bu sinfda faol o'quvchi yo'q.",
     "student": "O'quvchi",
     "averageColumn": "O'rtacha",
     "rankColumn": "O'rin",
@@ -33,7 +35,7 @@
       "excellent": "A'lo",
       "good": "Yaxshi",
       "average": "O'rta",
-      "weak": "Past"
+      "weak": "Bo'sh"
     }
   }
 }

@@ -22,6 +22,7 @@ import {
 import { buildLessonColumns, parseTopN, rankByAverage } from "@/lib/journal";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
+import { VerticalHeader } from "@/components/vertical-header";
 import {
   Card,
   CardContent,
@@ -40,23 +41,29 @@ import {
  *
  * Shuning uchun bu fayl ATAYLAB hech qanday forma yoki Server Action
  * ishlatmaydi — sahifada yozish yo'li umuman yo'q. Bu eng ishonchli himoya:
- * mavjud bo'lmagan endpoint'ga hujum qilinmaydi. Avvalgi versiyadagi
- * `actions.ts` va `grades-form.tsx` shuning uchun o'chirildi.
+ * mavjud bo'lmagan endpoint'ga hujum qilinmaydi.
  *
  * ADMIN hamma narsani o'zgartira oladi (bu ham egasining qoidasi), lekin
  * o'zgartirish JOYI bitta: jurnal. Admin uchun bu sahifada jurnalga o'tish
  * havolasi chiqadi — huquq cheklanmaydi, faqat yo'l bittaga keltiriladi.
- * Bir amal ikki joyda bajarilmasa, audit ham ishonchli bo'ladi.
  *
- * IKKI KO'RINISH:
- *   Bir kunlik   — ustunlar: shu kunning darslari (jurnal bilan bir xil nom)
- *   Bir haftalik — ustunlar: fanlar; katakchada kunlik baholar va fan
- *                  bo'yicha o'rtacha. O'zlashtirish ko'rsatkichi uchun aynan
- *                  shu ko'rinish kerak.
+ * IKKI KO'RINISH
+ * --------------
+ * Bir kunlik:
+ *   | O'quvchi | Matematika | Matematika 2 | Ona tili | O'rtacha | O'rin |
  *
- * Oxirgi ikki ustun — o'rtacha ball va O'RIN. O'rin jurnaldagi qoida bilan
- * bir xil hisoblanadi (`rankByAverage`): teng ball — teng o'rin, "dastlabki
- * N o'rin" sozlanadi.
+ * Bir haftalik — har fan ostida HAFTANING KUNLARI alohida ustun:
+ *   |          |        Matematika        |        Ona tili        |
+ *   | O'quvchi | 17.08 18.08 ... 22.08 O'rt | 17.08 ... 22.08 O'rt |
+ *
+ * Avval haftalik ko'rinishda bir fanning butun haftasi BITTA katakchaga
+ * jamlanardi. Egasi buni rad etdi: o'zlashtirish ko'rsatkichini ko'rish
+ * uchun "qaysi KUNI qanday ball olgan" aniq ko'rinishi kerak. Shuning uchun
+ * jadval ikki qatorli sarlavhaga o'tdi (guruh + kunlar).
+ *
+ * Ustun soni ko'payadi (masalan 5 fan × 7 ustun = 35), shuning uchun
+ * sarlavhalar VERTIKAL va jadval gorizontal siljiydi. Vertikal ichki scroll
+ * ataylab yo'q — sahifada bitta asosiy scroll bo'ladi (layout qoidasi).
  */
 
 const selectClassName =
@@ -68,6 +75,19 @@ const levelTextStyle: Record<string, string> = {
   average: "text-amber-700",
   weak: "text-red-700",
 };
+
+/**
+ * Ism-familiya ustuni.
+ *
+ * `whitespace-nowrap` — egasining talabi: eng uzun ism qancha joy olsa,
+ * ustun shuncha keng bo'ladi. `min-w` YO'Q va `max-w` ham yo'q: agar
+ * belgilangan kenglik qo'yilsa uzun familiya ikki qatorga tushib siqilib
+ * qoladi. Bu qoida barcha jadvallar uchun bir xil (jurnal, davomat, baholar).
+ */
+const nameCellClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-2";
+const nameHeaderClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-muted/50 px-3 py-2 text-left align-bottom font-medium";
 
 export default async function GradesPage({
   searchParams,
@@ -111,6 +131,14 @@ export default async function GradesPage({
     select: { id: true, name: true },
   });
 
+  /**
+   * SINF TANLASH MAJBURIY (egasining talabi).
+   *
+   * Faqat bitta sinfga ruxsati bor foydalanuvchi uchun avtomatik tanlanadi —
+   * bu "majburiy" qoidasiga qarshi emas: tanlov baribir bitta, lekin
+   * foydalanuvchi ikki marta tugma bosmaydi (avvalgi shikoyat).
+   * Boshqa hollarda sinf tanlanmaguncha jadval umuman chizilmaydi.
+   */
   const selectedClass =
     (classId ? classes.find((klass) => klass.id === classId) : undefined) ??
     (classes.length === 1 ? classes[0] : undefined);
@@ -126,7 +154,7 @@ export default async function GradesPage({
             classId: selectedClass.id,
             dayOfWeek: dayOfWeekFromText(from),
           },
-          orderBy: [{ startTime: "asc" }],
+          orderBy: [{ period: { index: "asc" } }, { startTime: "asc" }],
           select: {
             id: true,
             subjectId: true,
@@ -200,8 +228,11 @@ export default async function GradesPage({
         })
       : [];
 
+  /** Bir kunlik: studentId|lessonId → ball. */
   const dayValues = new Map<string, number>();
-  const weekValues = new Map<string, Array<{ date: string; value: number }>>();
+  /** Haftalik: studentId|subjectId|sana → ballar (kunda 2 dars bo'lishi mumkin). */
+  const weekValues = new Map<string, number[]>();
+  /** Umumiy o'rtacha uchun barcha ballar. */
   const allValues = new Map<string, number[]>();
 
   for (const grade of grades) {
@@ -226,9 +257,9 @@ export default async function GradesPage({
       continue;
     }
 
-    const key = `${grade.studentId}|${grade.subjectId}`;
+    const key = `${grade.studentId}|${grade.subjectId}|${dateToText(grade.date)}`;
     const cell = weekValues.get(key) ?? [];
-    cell.push({ date: dateToText(grade.date), value: grade.value });
+    cell.push(grade.value);
     weekValues.set(key, cell);
   }
 
@@ -240,6 +271,19 @@ export default async function GradesPage({
     averages.map((row) => [row.id, row.average] as const)
   );
   const ranks = rankByAverage(averages, topN);
+
+  /** Fan bo'yicha haftalik o'rtacha — o'zlashtirish ko'rsatkichi. */
+  const subjectAverage = (
+    studentId: string,
+    subjectId: string
+  ): number | null => {
+    const values: number[] = [];
+    for (const date of dates) {
+      const cell = weekValues.get(`${studentId}|${subjectId}|${date}`) ?? [];
+      values.push(...cell);
+    }
+    return averageOf(values);
+  };
 
   const journalHref = `/journal?${new URLSearchParams({
     date: from,
@@ -269,8 +313,14 @@ export default async function GradesPage({
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6" method="get">
+            {/*
+              `required` — bo'sh variant bilan forma yuborilmaydi, brauzer
+              o'zi "sinfni tanlang" deb ogohlantiradi. Server tomonda ham
+              tekshiriladi: sinf tanlanmasa jadval chizilmaydi.
+            */}
             <select
               name="classId"
+              required
               defaultValue={selectedClass?.id ?? ""}
               className={selectClassName}
               aria-label={t("chooseClass")}
@@ -329,7 +379,9 @@ export default async function GradesPage({
               {t("apply")}
             </Button>
           </form>
-          <p className="mt-2 text-xs text-muted-foreground">{t("topNHint")}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t("classRequired")} {t("topNHint")}
+          </p>
         </CardContent>
       </Card>
 
@@ -370,36 +422,86 @@ export default async function GradesPage({
             ) : (
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="sticky left-0 z-10 min-w-[200px] bg-muted/50 px-3 py-2 text-left font-medium">
-                        {t("student")}
-                      </th>
-                      {mode === "day"
-                        ? dayColumns.map((column) => (
+                  {mode === "day" ? (
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className={nameHeaderClassName}>{t("student")}</th>
+                        {dayColumns.map((column) => (
+                          <th
+                            key={column.id}
+                            className="w-16 border-l px-1 py-2 align-bottom font-medium"
+                          >
+                            <VerticalHeader>{column.label}</VerticalHeader>
+                          </th>
+                        ))}
+                        <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
+                          <VerticalHeader>{t("averageColumn")}</VerticalHeader>
+                        </th>
+                        <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
+                          <VerticalHeader>{t("rankColumn")}</VerticalHeader>
+                        </th>
+                      </tr>
+                    </thead>
+                  ) : (
+                    /*
+                      IKKI QATORLI SARLAVHA:
+                        1-qator — fan nomi (kunlar + o'rtacha ustunlari ustida)
+                        2-qator — haftaning kunlari va fan o'rtachasi
+                      Fan nomi bir necha ustun ustida turgani uchun vertikal
+                      emas: joyi keng, gorizontal o'qish osonroq. Tor
+                      ustunlar (kunlar, o'rtacha, o'rin) esa vertikal.
+                    */
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th rowSpan={2} className={nameHeaderClassName}>
+                          {t("student")}
+                        </th>
+                        {subjectColumns.map((column) => (
+                          <th
+                            key={column.id}
+                            colSpan={dates.length + 1}
+                            className="whitespace-nowrap border-l border-b px-2 py-1.5 text-center font-semibold"
+                          >
+                            {column.name}
+                          </th>
+                        ))}
+                        <th
+                          rowSpan={2}
+                          className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold"
+                        >
+                          <VerticalHeader>{t("averageColumn")}</VerticalHeader>
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold"
+                        >
+                          <VerticalHeader>{t("rankColumn")}</VerticalHeader>
+                        </th>
+                      </tr>
+                      <tr className="border-b bg-muted/50">
+                        {subjectColumns.flatMap((column) => [
+                          ...dates.map((date) => (
                             <th
-                              key={column.id}
-                              className="border-l px-2 py-2 text-center font-medium"
+                              key={`${column.id}-${date}`}
+                              className="w-12 border-l px-1 py-2 align-bottom text-xs font-medium"
                             >
-                              {column.label}
+                              <VerticalHeader className="h-16">
+                                {shortDateLabel(date)}
+                              </VerticalHeader>
                             </th>
-                          ))
-                        : subjectColumns.map((column) => (
-                            <th
-                              key={column.id}
-                              className="border-l px-2 py-2 text-center font-medium"
-                            >
-                              {column.name}
-                            </th>
-                          ))}
-                      <th className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
-                        {t("averageColumn")}
-                      </th>
-                      <th className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
-                        {t("rankColumn")}
-                      </th>
-                    </tr>
-                  </thead>
+                          )),
+                          <th
+                            key={`${column.id}-avg`}
+                            className="w-12 border-l bg-amber-50 px-1 py-2 align-bottom text-xs font-semibold"
+                          >
+                            <VerticalHeader className="h-16">
+                              {t("subjectAverage")}
+                            </VerticalHeader>
+                          </th>,
+                        ])}
+                      </tr>
+                    </thead>
+                  )}
 
                   <tbody>
                     {students.map((student, index) => {
@@ -408,7 +510,7 @@ export default async function GradesPage({
 
                       return (
                         <tr key={student.id} className="border-b last:border-b-0">
-                          <td className="sticky left-0 z-10 bg-background px-3 py-2">
+                          <td className={nameCellClassName}>
                             <span className="text-muted-foreground">
                               {index + 1}.
                             </span>{" "}
@@ -437,60 +539,63 @@ export default async function GradesPage({
                                   </td>
                                 );
                               })
-                            : subjectColumns.map((column) => {
-                                const cell =
-                                  weekValues.get(`${student.id}|${column.id}`) ??
-                                  [];
-                                const sorted = [...cell].sort((left, right) =>
-                                  left.date.localeCompare(right.date)
-                                );
-                                const subjectAverage = averageOf(
-                                  sorted.map((row) => row.value)
-                                );
+                            : subjectColumns.flatMap((column) => {
+                                const cells = dates.map((date) => {
+                                  const values =
+                                    weekValues.get(
+                                      `${student.id}|${column.id}|${date}`
+                                    ) ?? [];
 
-                                return (
-                                  <td
-                                    key={column.id}
-                                    className="border-l px-2 py-2 text-center"
-                                  >
-                                    {sorted.length === 0 ? (
-                                      <span className="text-muted-foreground">
-                                        —
-                                      </span>
-                                    ) : (
-                                      <>
-                                        {/*
-                                          Haftada bir fandan bir necha baho
-                                          bo'ladi. 6 kunni 6 ta ustunga
-                                          yoyish jadvalni juda kengaytirib
-                                          yuboradi — shuning uchun bir
-                                          katakchada ixcham ro'yxat va
-                                          ostida fan o'rtachasi ko'rsatiladi.
-                                        */}
-                                        <div className="flex flex-wrap justify-center gap-1">
-                                          {sorted.map((row) => (
+                                  return (
+                                    <td
+                                      key={`${column.id}-${date}`}
+                                      className="border-l px-1 py-2 text-center"
+                                    >
+                                      {values.length === 0 ? (
+                                        <span className="text-muted-foreground">
+                                          —
+                                        </span>
+                                      ) : (
+                                        /*
+                                          Bir kunda bir fandan ikki dars
+                                          bo'lsa ikki ball chiqadi — ikkisi
+                                          ham ko'rsatiladi, yashirilmaydi.
+                                        */
+                                        <span className="flex flex-wrap justify-center gap-1">
+                                          {values.map((value, position) => (
                                             <span
-                                              key={`${row.date}-${row.value}`}
-                                              title={shortDateLabel(row.date)}
-                                              className={`rounded px-1 text-xs font-medium ${
+                                              key={`${date}-${position}`}
+                                              className={`font-medium ${
                                                 levelTextStyle[
-                                                  gradeLevelKey(row.value)
+                                                  gradeLevelKey(value)
                                                 ] ?? ""
                                               }`}
                                             >
-                                              {row.value}
+                                              {value}
                                             </span>
                                           ))}
-                                        </div>
-                                        <div className="mt-0.5 text-xs font-semibold">
-                                          {subjectAverage === null
-                                            ? "—"
-                                            : subjectAverage.toFixed(1)}
-                                        </div>
-                                      </>
-                                    )}
-                                  </td>
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                });
+
+                                const subjectMean = subjectAverage(
+                                  student.id,
+                                  column.id
                                 );
+
+                                return [
+                                  ...cells,
+                                  <td
+                                    key={`${column.id}-avg`}
+                                    className="border-l bg-amber-50 px-1 py-2 text-center text-xs font-semibold"
+                                  >
+                                    {subjectMean === null
+                                      ? "—"
+                                      : subjectMean.toFixed(1)}
+                                  </td>,
+                                ];
                               })}
 
                           <td className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
