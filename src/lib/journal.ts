@@ -259,11 +259,23 @@ export type RankRow = { id: string; average: number | null };
  * Qoidalar:
  *   - Baho umuman yo'q o'quvchi o'rinsiz qoladi (0 deb hisoblash yolg'on
  *     bo'lardi — "yomon o'qiydi" emas, "baho qo'yilmagan").
- *   - Teng ballar TENG o'rin oladi (ikki bola 90 ball olsa ikkisi ham
- *     2-o'rin, keyingisi 4-o'rin). Qog'oz reytingda ham shunday.
- *   - `topN` berilsa faqat dastlabki N o'rin belgilanadi. Masalan 7 kiritilsa
- *     eng yuqori 7 o'rin chiqadi, qolganlar bo'sh qoladi. Berilmasa butun
- *     sinf bo'yicha o'rin hisoblanadi.
+ *   - Teng ballar TENG o'rin oladi.
+ *   - O'rinlar UZILMAYDI: keyingi ball keyingi o'rinni oladi.
+ *
+ * Misol (egasining talabi):
+ *   95, 95, 90, 85  →  1, 1, 2, 3
+ *
+ * Ilgari bu yerda sport turnirlaridagi usul ishlatilgan edi (95, 95, 90 →
+ * 1, 1, 3) — ya'ni o'rin sakrab ketardi. Maktab jurnalida esa o'rin "ball
+ * darajasi" ma'nosini beradi: nechta bola bir xil ball olganidan qat'i nazar,
+ * undan keyingi daraja 2-o'rin bo'ladi.
+ *
+ * Shuning uchun hisob RAQAM emas, DARAJA bo'yicha yuritiladi: har yangi
+ * (kichikroq) o'rtacha ball ko'rinsa daraja bittaga oshadi.
+ *
+ * `topN` berilsa faqat dastlabki N daraja belgilanadi. Masalan 7 kiritilsa
+ * eng yuqori 7 daraja chiqadi, qolganlar bo'sh qoladi — bunda bir darajada
+ * bir necha bola bo'lishi mumkin, ya'ni 7 dan ko'p bola belgilanishi normal.
  */
 export function rankByAverage(
   rows: RankRow[],
@@ -274,18 +286,21 @@ export function rankByAverage(
     .sort((left, right) => right.average - left.average);
 
   const result: Record<string, number> = {};
+  const limit = topN !== null && topN !== undefined && topN > 0 ? topN : null;
 
   let place = 0;
-  let index = 0;
   let previous: number | null = null;
 
   for (const row of ranked) {
-    index += 1;
+    // Yangi ball — yangi daraja. Bir xil ball — avvalgi daraja.
     if (previous === null || row.average < previous) {
-      place = index;
+      place += 1;
       previous = row.average;
     }
-    if (topN !== null && topN !== undefined && topN > 0 && place > topN) break;
+
+    // Chegaradan oshdi — ro'yxat ball bo'yicha tartiblangani uchun to'xtaymiz.
+    if (limit !== null && place > limit) break;
+
     result[row.id] = place;
   }
 

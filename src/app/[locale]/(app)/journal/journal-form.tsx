@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
+import { VerticalHeader } from "@/components/vertical-header";
 import { GRADE_MAX, GRADE_MIN, averageOf, gradeLevelKey } from "@/lib/grades";
 import {
   ATTENDANCE_ABBREVIATIONS,
@@ -24,18 +25,17 @@ import { saveJournal, type JournalFormState } from "./actions";
  *
  * | # | O'quvchi | Davomat | Matematika | Matematika 2 | ... | O'rtacha | O'rin |
  *
+ * Sarlavhalar VERTIKAL (pastdan yuqoriga) — shunda 8–10 ta dars ustuni ham
+ * ekranga sig'adi. Katakchalardagi input butun katakni egallaydi: sichqoncha
+ * katakning istalgan joyiga tegsa ham kursor inputga tushadi, ya'ni tez
+ * yozish uchun mo'ljal olish kerak emas.
+ *
  * Faqat foydalanuvchining O'Z dars ustunlari ochiq. Boshqa ustun inputi
  * bloklangan va ustiga kursor kelsa tooltip chiqadi — alohida modal oyna
  * ochilmaydi (egasining talabi: kichik xabarcha yetarli).
  *
  * O'rtacha va o'rin TIRIK hisoblanadi — raqam kiritilishi bilan yangilanadi,
- * saqlashni kutib turmaydi. Shu tufayli o'qituvchi baho qo'yayotib sinfdagi
- * o'rin qanday o'zgarayotganini darhol ko'radi.
- *
- * "Dastlabki N o'rin" maydoni ham tirik: 7 yozilsa faqat eng yuqori 7 o'rin
- * belgilanadi, bo'sh qoldirilsa butun sinf bo'yicha o'rin chiqadi. Bu maydon
- * SAQLANMAYDI — u faqat ko'rinish sozlamasi, shuning uchun formada `name`
- * berilmagan.
+ * saqlashni kutib turmaydi.
  *
  * Bu yerdagi barcha tekshiruvlar faqat QULAYLIK uchun. Haqiqiy himoya
  * serverda: zod 0–100, `gradingLessonScope` bilan o'z darslarini serverning
@@ -75,6 +75,13 @@ const attendanceCellStyle: Record<string, string> = {
   SL: "bg-sky-50 text-sky-800",
   KCH: "bg-amber-50 text-amber-800",
 };
+
+/**
+ * Input butun katakni egallashi uchun ishlatiladigan sinflar.
+ * `h-full w-full` + katakda `p-0` — shunda chegara ichida bo'sh joy qolmaydi.
+ */
+const cellInputClassName =
+  "h-11 w-full border border-transparent px-1 text-center font-medium outline-none focus:border-primary focus:bg-background disabled:cursor-not-allowed disabled:opacity-70";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -196,28 +203,28 @@ export function JournalForm({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="sticky left-0 z-10 min-w-[200px] bg-muted/50 px-3 py-2 text-left font-medium">
+              <th className="sticky left-0 z-10 min-w-[200px] bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
                 {t("student")}
               </th>
-              <th className="border-l px-2 py-2 text-center font-medium">
-                {t("attendance")}
+              <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
+                <VerticalHeader>{t("attendance")}</VerticalHeader>
               </th>
               {columns.map((column) => (
                 <th
                   key={column.id}
-                  className={`border-l px-2 py-2 text-center font-medium ${
+                  className={`w-16 border-l px-1 py-2 align-bottom font-medium ${
                     column.editable ? "" : "text-muted-foreground"
                   }`}
                   title={column.editable ? undefined : t("lockedTooltip")}
                 >
-                  {column.label}
+                  <VerticalHeader>{column.label}</VerticalHeader>
                 </th>
               ))}
-              <th className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
-                {t("averageColumn")}
+              <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
+                <VerticalHeader>{t("averageColumn")}</VerticalHeader>
               </th>
-              <th className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
-                {t("rankColumn")}
+              <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
+                <VerticalHeader>{t("rankColumn")}</VerticalHeader>
               </th>
             </tr>
           </thead>
@@ -235,7 +242,8 @@ export function JournalForm({
                     <span className="font-medium">{student.fullName}</span>
                   </td>
 
-                  <td className="border-l p-0.5 text-center">
+                  {/* p-0 — input katakni to'liq egallashi uchun. */}
+                  <td className="border-l p-0">
                     <input
                       type="text"
                       name={
@@ -255,7 +263,7 @@ export function JournalForm({
                       list="attendance-marks"
                       aria-label={`${student.fullName} — ${t("attendance")}`}
                       title={canEdit ? t("gridHint") : t("readOnly")}
-                      className={`h-9 w-16 rounded border border-transparent px-1 text-center font-semibold uppercase outline-none focus:border-primary disabled:cursor-not-allowed ${
+                      className={`${cellInputClassName} font-semibold uppercase ${
                         attendanceCellStyle[mark] ?? "bg-background"
                       }`}
                     />
@@ -272,7 +280,7 @@ export function JournalForm({
                       parsed <= GRADE_MAX;
 
                     return (
-                      <td key={column.id} className="border-l p-0.5 text-center">
+                      <td key={column.id} className="border-l p-0">
                         <input
                           type="number"
                           inputMode="numeric"
@@ -303,7 +311,7 @@ export function JournalForm({
                           title={
                             column.editable ? undefined : t("lockedTooltip")
                           }
-                          className={`h-9 w-14 rounded border border-transparent px-1 text-center font-medium outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-70 ${
+                          className={`${cellInputClassName} ${
                             valid
                               ? levelCellStyle[gradeLevelKey(parsed)] ?? ""
                               : "bg-background"
