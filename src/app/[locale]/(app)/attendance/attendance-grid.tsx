@@ -61,6 +61,19 @@ const cellStyle: Record<string, string> = {
 const cellInputClassName =
   "h-11 w-full border border-transparent px-1 text-center font-semibold uppercase outline-none focus:border-primary focus:bg-background disabled:cursor-not-allowed disabled:opacity-70";
 
+/**
+ * Ism-familiya ustuni.
+ *
+ * `whitespace-nowrap` — egasining talabi: eng uzun ism qancha joy olsa,
+ * ustun shuncha keng bo'ladi. Qat'iy kenglik ataylab qo'yilmaydi, aks holda
+ * uzun familiya ikki qatorga tushib siqilib qoladi. Bu qoida barcha
+ * jadvallarda bir xil (jurnal, davomat, baholar).
+ */
+const nameHeaderClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium";
+const nameCellClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-1.5";
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   const t = useTranslations("attendance");
@@ -165,9 +178,7 @@ export function AttendanceGrid({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="sticky left-0 z-10 min-w-[200px] bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
-                {t("student")}
-              </th>
+              <th className={nameHeaderClassName}>{t("student")}</th>
               {columns.map((column) => (
                 <th
                   key={column.id}
@@ -188,7 +199,7 @@ export function AttendanceGrid({
           <tbody>
             {students.map((student, index) => (
               <tr key={student.id} className="border-b last:border-b-0">
-                <td className="sticky left-0 z-10 bg-background px-3 py-1.5">
+                <td className={nameCellClassName}>
                   <span className="text-muted-foreground">{index + 1}.</span>{" "}
                   <span className="font-medium">{student.fullName}</span>
                 </td>
