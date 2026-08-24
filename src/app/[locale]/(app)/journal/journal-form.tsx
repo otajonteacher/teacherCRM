@@ -78,10 +78,22 @@ const attendanceCellStyle: Record<string, string> = {
 
 /**
  * Input butun katakni egallashi uchun ishlatiladigan sinflar.
- * `h-full w-full` + katakda `p-0` — shunda chegara ichida bo'sh joy qolmaydi.
+ * `w-full` + katakda `p-0` — shunda chegara ichida bo'sh joy qolmaydi.
  */
 const cellInputClassName =
   "h-11 w-full border border-transparent px-1 text-center font-medium outline-none focus:border-primary focus:bg-background disabled:cursor-not-allowed disabled:opacity-70";
+
+/**
+ * Ism-familiya ustuni.
+ *
+ * `whitespace-nowrap` — egasining talabi: eng uzun ism qancha joy olsa,
+ * ustun shuncha keng bo'ladi. Qat'iy `min-w`/`max-w` ataylab qo'yilmaydi:
+ * belgilangan kenglik uzun familiyani ikki qatorga tushirib siqib qo'yadi.
+ */
+const nameHeaderClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium";
+const nameCellClassName =
+  "sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-1.5";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -203,9 +215,7 @@ export function JournalForm({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="sticky left-0 z-10 min-w-[200px] bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
-                {t("student")}
-              </th>
+              <th className={nameHeaderClassName}>{t("student")}</th>
               <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
                 <VerticalHeader>{t("attendance")}</VerticalHeader>
               </th>
@@ -237,7 +247,7 @@ export function JournalForm({
 
               return (
                 <tr key={student.id} className="border-b last:border-b-0">
-                  <td className="sticky left-0 z-10 bg-background px-3 py-1.5">
+                  <td className={nameCellClassName}>
                     <span className="text-muted-foreground">{index + 1}.</span>{" "}
                     <span className="font-medium">{student.fullName}</span>
                   </td>
