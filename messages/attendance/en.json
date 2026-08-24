@@ -1,11 +1,21 @@
 {
   "attendance": {
     "title": "Attendance",
-    "subtitle": "Pick a date and lesson — mark the whole class on one screen.",
-    "chooseTitle": "Date and class",
-    "chooseHint": "If no class is selected, all lessons of that day are shown.",
+    "subtitle": "Pick a class and a date — every lesson of the day in one table.",
+    "chooseTitle": "Class and date",
+    "chooseHint": "Once a class is selected, every lesson of that day becomes a column.",
+    "chooseClass": "Select a class",
+    "dateLabel": "Date",
     "allClasses": "All classes",
     "apply": "Show",
+    "gridTitle": "Daily attendance grid",
+    "gridHint": "Type an abbreviation: K, SZ, SL, KCH. Only your own subject columns are editable.",
+    "lockedTooltip": "This is not your subject.",
+    "readOnly": "You have no lesson in this class on this day — view only.",
+    "needClass": "Select a class to see the attendance grid.",
+    "legendTitle": "Legend",
+    "presentColumn": "Present",
+    "lessonCount": "Lessons: {count}",
     "lessonsTitle": "Lessons of the day",
     "lessonsHint": "Select a lesson to mark attendance.",
     "noLessons": "No lessons scheduled for this day.",
@@ -18,9 +28,9 @@
     "saving": "Saving...",
     "saved": "Attendance saved.",
     "cancel": "Cancel",
-    "openJournal": "Open journal",
-    "backToEntry": "Back to marking",
-    "journalTitle": "Attendance journal",
+    "openJournal": "Open report",
+    "backToEntry": "Back to the grid",
+    "journalTitle": "Attendance report",
     "journalSubtitle": "Weekly view — class, percentages and missed lessons.",
     "week": "Week",
     "prevWeek": "Previous week",
@@ -37,15 +47,15 @@
     "noAbsentees": "No missed lessons this week.",
     "status": {
       "PRESENT": "Present",
-      "ABSENT": "Absent",
+      "ABSENT": "Absent (unexcused)",
       "LATE": "Late",
-      "EXCUSED": "Excused"
+      "EXCUSED": "Absent (excused)"
     },
     "statusShort": {
-      "PRESENT": "P",
-      "ABSENT": "A",
-      "LATE": "L",
-      "EXCUSED": "E"
+      "PRESENT": "K",
+      "ABSENT": "SZ",
+      "LATE": "KCH",
+      "EXCUSED": "SL"
     },
     "days": {
       "1": "Monday",
