@@ -8,6 +8,7 @@ import {
   Clock,
   Library,
   ClipboardCheck,
+  ClipboardList,
   BookOpenCheck,
   Trophy,
   AlertTriangle,
@@ -34,6 +35,9 @@ const item = {
   classes: { key: "classes", href: "/classes", icon: School },
   schedule: { key: "schedule", href: "/schedule", icon: CalendarDays },
   attendance: { key: "attendance", href: "/attendance", icon: ClipboardCheck },
+  // Kunlik jurnal — baho va davomat KIRITISH joyi. Menyuda "Baholar"dan
+  // oldin turadi, chunki kundalik ish shu yerda boshlanadi.
+  journal: { key: "journal", href: "/journal", icon: ClipboardList },
   grades: { key: "grades", href: "/grades", icon: BookOpenCheck },
   ranking: { key: "ranking", href: "/ranking", icon: Trophy },
   penalties: { key: "penalties", href: "/penalties", icon: AlertTriangle },
@@ -74,6 +78,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
         item.classes,
         item.schedule,
         item.attendance,
+        item.journal,
         item.grades,
         item.ranking,
         item.tests,
@@ -107,6 +112,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
         item.classes,
         item.schedule,
         item.attendance,
+        item.journal,
         item.grades,
         item.ranking,
         item.tests,

@@ -254,6 +254,9 @@ model Lesson {
   room      String?
 
   attendances Attendance[]
+  // Jurnalda har bir dars alohida ustun bo'ladi, shuning uchun baho ham
+  // darsga bog'lanadi (bir kunda bir fandan ikki dars bo'lishi mumkin).
+  grades      Grade[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -303,11 +306,29 @@ model Grade {
   teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   teacherId String?
 
+  // QAYSI DARSGA qo'yilgan baho (jurnal ustuni).
+  //
+  // Ixtiyoriy (`String?`) — ikki sabab bilan:
+  //   1. Bu maydon qo'shilishidan oldin kiritilgan baholarda u bo'sh qoladi,
+  //      lekin ular yo'qolmasligi kerak.
+  //   2. Dars jadvalidan dars o'chirilsa baho saqlanib qolishi kerak
+  //      (`onDelete: SetNull`) — o'quvchining bahosi jadval tahriri sababli
+  //      yo'qolmasligi lozim.
+  //
+  // Shu maydon tufayli bir kunda bir fandan ikki dars bo'lsa, jurnalda ikki
+  // alohida ustun ("Matematika", "Matematika 2") va ikki alohida baho bo'ladi.
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  lessonId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([studentId, quarterId])
   @@index([subjectId, quarterId])
+  // Jurnal so'rovi: "shu darsning shu kundagi baholari".
+  @@index([lessonId, date])
+  // Hisobot so'rovi: "shu o'quvchining shu kundagi barcha baholari".
+  @@index([studentId, date])
 }
 
 // ------------------------------------------------------------------

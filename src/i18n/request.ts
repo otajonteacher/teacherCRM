@@ -3,32 +3,57 @@ import { notFound } from "next/navigation";
 import { locales } from "./config";
 
 /**
- * Har bir so'rov uchun tarjimalarni yuklaydi (next-intl plugin shu faylni ishlatadi).
+ * TARJIMALARNI YUKLASH
+ * ====================
  *
- * Tarjimalar bir necha fayldan yig'iladi:
- *   1. messages/<locale>.json            — asosiy fayl (eski bo'limlar)
- *   2. messages/attendance/<locale>.json — davomat bo'limi (5-bosqich)
- *   3. messages/grades/<locale>.json     — baholar bo'limi (6-bosqich)
+ * Asosiy `messages/<locale>.json` fayli allaqachon katta, shuning uchun yangi
+ * modullar o'z papkasida alohida saqlanadi (`messages/journal/uz.json` va
+ * hokazo) va shu yerda birlashtiriladi. Katta faylni har modul uchun qayta
+ * tahrirlash xatoga olib keladi.
  *
- * Nima uchun alohida fayl: asosiy fayl juda kattalashib ketgan va uni to'liq
- * qayta yozish paytida boshqa bo'lim tarjimalari tasodifan yo'qolib qolishi
- * mumkin. Yangi modul o'z faylini olib keladi, eski fayl esa tegilmaydi.
- * Birlashtirish yuqori darajada (bo'lim nomi bo'yicha) bajariladi.
+ * IKKI DARAJALI BIRLASHTIRISH kerak, chunki modul fayli mavjud bo'lim ichiga
+ * bitta kalit qo'shishi mumkin: `messages/journal/uz.json` ichidagi
+ * `"nav": { "journal": "Jurnal" }` asosiy fayldagi `nav` bo'limining ustiga
+ * yozib ketmasligi — unga QO'SHILISHI kerak, aks holda menyudagi barcha
+ * boshqa nomlar yo'qoladi.
  */
+
+type Messages = { [key: string]: string | Messages };
+
+function isGroup(value: unknown): value is Messages {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergeMessages(sources: Messages[]): Messages {
+  const result: Messages = {};
+
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      const current = result[key];
+      result[key] =
+        isGroup(current) && isGroup(value) ? { ...current, ...value } : value;
+    }
+  }
+
+  return result;
+}
+
 export default getRequestConfig(async ({ locale }) => {
   if (!locales.includes(locale as (typeof locales)[number])) notFound();
 
-  const [base, attendance, grades] = await Promise.all([
+  const [base, attendance, grades, journal] = await Promise.all([
     import(`../../messages/${locale}.json`),
     import(`../../messages/attendance/${locale}.json`),
     import(`../../messages/grades/${locale}.json`),
+    import(`../../messages/journal/${locale}.json`),
   ]);
 
   return {
-    messages: {
-      ...base.default,
-      ...attendance.default,
-      ...grades.default,
-    },
+    messages: mergeMessages([
+      base.default,
+      attendance.default,
+      grades.default,
+      journal.default,
+    ]),
   };
 });
