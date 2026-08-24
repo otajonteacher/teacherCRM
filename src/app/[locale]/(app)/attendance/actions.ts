@@ -4,66 +4,80 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
 import { redirectNever } from "@/lib/auth-guard";
-import { assertCanAccessLesson } from "@/lib/scope";
+import { lessonScope } from "@/lib/scope";
 import { toDate, type SaveResult } from "@/lib/academics";
-import { attendanceSaveSchema } from "@/lib/attendance";
+import { dayOfWeekFromText } from "@/lib/attendance";
+import { attendanceGridSaveSchema } from "@/lib/attendance-grid";
 import { queueAbsenceNotices } from "@/lib/absence-notice";
 
 /**
- * DAVOMATNI SAQLASH (5-bosqich)
- * =============================
+ * DAVOMATNI SAQLASH — SINF BO'YICHA KUNLIK JADVAL
+ * ===============================================
  *
  * Xavfsizlik zanjiri:
- *   1. `roles` — faqat ADMIN va TEACHER yozadi (PARENT ko'radi, ACCOUNTANT umuman kirmaydi)
- *   2. zod — kirish shakli tekshiriladi
- *   3. `assertCanAccessLesson` — bu odam SHU darsga tegishlimi (IDOR himoyasi)
- *   4. o'quvchi filtri — faqat SHU dars sinfidagi o'quvchilar yozuvi saqlanadi
- *   5. audit — kim, qachon, qaysi darsga davomat qo'ydi
+ *   1. `roles` — faqat ADMIN va TEACHER yozadi (PARENT ko'radi,
+ *      ACCOUNTANT umuman kirmaydi)
+ *   2. zod — kirish shakli va qisqartmalar tekshiriladi
+ *   3. `lessonScope` — server O'ZI foydalanuvchining shu kundagi darslarini
+ *      topadi. Klientdan kelgan dars ID lari shu ro'yxat bilan solishtiriladi,
+ *      begonalari JIMGINA tashlanadi (IDOR himoyasi)
+ *   4. o'quvchi filtri — faqat SHU sinfdagi o'quvchilar yozuvi saqlanadi
+ *   5. audit — kim, qachon, qaysi sinfga davomat qo'ydi
  *
- * 4-qadam alohida ahamiyatga ega: forma maydon nomlari "entry:<studentId>"
- * ko'rinishida bo'lgani uchun, so'rovni qo'lda yasagan odam begona o'quvchi
- * ID sini qo'shib yuborishi mumkin. Shuning uchun serverda sinf tarkibi
- * bilan solishtiriladi.
+ * 3-qadam eng muhimi: forma maydonlari "ag:<studentId>:<lessonId>"
+ * ko'rinishida, ya'ni so'rovni qo'lda yasagan odam boshqa o'qituvchining
+ * darsi yoki boshqa sinf o'quvchisini qo'shib yuborishi mumkin. Shuning
+ * uchun klientdagi `disabled` ga hech qachon ishonilmaydi.
  *
- * ESLATMA: ota-onaga xabar navbatga qo'yish mantig'i `src/lib/absence-notice.ts`
- * ga chiqarildi — uni kunlik jurnal ham chaqiradi. Bu fayl `"use server"`
- * bo'lgani uchun undan yordamchi funksiyani EXPORT qilish mumkin emas:
- * bunday eksport ochiq HTTP endpoint'ga aylanadi.
+ * NIMA UCHUN `lessonScope` (`gradingLessonScope` emas): davomatni SINF
+ * RAHBARI ham qo'yishi kerak — o'qituvchi kelmaganda yoki xatoni
+ * to'g'rilaganda. Baho esa faqat fan o'qituvchisiga tegishli. Bu
+ * assimetriya ataylab qilingan.
  */
 
 export type AttendanceFormState = { error?: string };
 
-const saveAttendanceAction = createAction({
+const saveAttendanceGridAction = createAction({
   roles: ["ADMIN", "TEACHER"],
-  schema: attendanceSaveSchema,
+  schema: attendanceGridSaveSchema,
   handler: async (input, user): Promise<SaveResult> => {
-    // Doiradan tashqarida bo'lsa bu yerda /forbidden ga yo'naltiradi.
-    await assertCanAccessLesson(user, input.lessonId);
+    const dayOfWeek = dayOfWeekFromText(input.date);
 
-    const lesson = await db.lesson.findUnique({
-      where: { id: input.lessonId },
-      select: { id: true, classId: true },
-    });
-    if (!lesson) {
-      return { ok: false, message: "Dars topilmadi." };
-    }
-
-    const classStudents = await db.student.findMany({
-      where: { classId: lesson.classId },
+    // Serverning o'zi topadigan ruxsat etilgan darslar ro'yxati.
+    const myLessons = await db.lesson.findMany({
+      where: {
+        AND: [lessonScope(user), { classId: input.classId, dayOfWeek }],
+      },
       select: { id: true },
     });
-    const allowedIds = new Set(classStudents.map((student) => student.id));
 
-    // Begona ID lar jimgina tashlab ketiladi — xato xabari hujumchiga
-    // qaysi ID mavjudligini bildirmasligi kerak.
-    const entries = input.entries.filter((entry) =>
-      allowedIds.has(entry.studentId)
+    if (myLessons.length === 0) {
+      return {
+        ok: false,
+        message: "Bu kunda bu sinfda sizga tegishli dars yo'q.",
+      };
+    }
+
+    const allowedLessons = new Set(myLessons.map((lesson) => lesson.id));
+
+    const classStudents = await db.student.findMany({
+      where: { classId: input.classId },
+      select: { id: true },
+    });
+    const allowedStudents = new Set(
+      classStudents.map((student) => student.id)
+    );
+
+    const entries = input.entries.filter(
+      (entry) =>
+        allowedLessons.has(entry.lessonId) &&
+        allowedStudents.has(entry.studentId)
     );
 
     if (entries.length === 0) {
       return {
         ok: false,
-        message: "Kamida bitta o'quvchi uchun holat belgilang.",
+        message: "Kamida bitta katakchaga holat kiriting.",
       };
     }
 
@@ -76,13 +90,13 @@ const saveAttendanceAction = createAction({
           where: {
             studentId_lessonId_date: {
               studentId: entry.studentId,
-              lessonId: lesson.id,
+              lessonId: entry.lessonId,
               date,
             },
           },
           create: {
             studentId: entry.studentId,
-            lessonId: lesson.id,
+            lessonId: entry.lessonId,
             date,
             status: entry.status,
           },
@@ -91,25 +105,38 @@ const saveAttendanceAction = createAction({
       )
     );
 
-    await queueAbsenceNotices(
-      entries
-        .filter((entry) => entry.status === "ABSENT")
-        .map((entry) => entry.studentId),
-      input.date
+    /**
+     * Ota-onaga xabar — tranzaksiyadan TASHQARIDA.
+     * Sabab: SMS navbati sekin ishlaydi va u tufayli davomat yozuvi
+     * qaytib ketishi mumkin emas.
+     *
+     * Bir kunda bir o'quvchi bir necha darsdan qolsa ham bitta xabar
+     * yuboriladi — shuning uchun ID lar takrorlanmaydigan ro'yxatga
+     * aylantiriladi.
+     */
+    const absentIds = Array.from(
+      new Set(
+        entries
+          .filter((entry) => entry.status === "ABSENT")
+          .map((entry) => entry.studentId)
+      )
     );
+    await queueAbsenceNotices(absentIds, input.date);
 
     // Locale prefiksisiz — konvensiya bo'yicha.
     revalidatePath("/attendance");
     revalidatePath("/attendance/journal");
     revalidatePath("/journal");
+    revalidatePath("/dashboard");
 
-    return { ok: true, id: lesson.id };
+    return { ok: true, id: input.classId };
   },
   audit: {
     action: "UPDATE",
     entity: "Attendance",
-    entityId: (input) => input.lessonId,
+    entityId: (input) => input.classId,
     meta: (input) => ({
+      source: "grid",
       date: input.date,
       marked: input.entries.length,
     }),
@@ -117,26 +144,27 @@ const saveAttendanceAction = createAction({
 });
 
 function attendanceUrl(
-  lessonId: string,
+  classId: string,
   date: string,
   saved?: boolean
 ): string {
-  const params = new URLSearchParams({ date, lessonId });
+  const params = new URLSearchParams({ date });
+  if (classId) params.set("classId", classId);
   if (saved) params.set("saved", "1");
   return `/attendance?${params.toString()}`;
 }
 
-export async function saveAttendance(
+export async function saveAttendanceGrid(
   _prev: AttendanceFormState,
   formData: FormData
 ): Promise<AttendanceFormState> {
   const raw = formDataToObject(formData);
-  const result = await saveAttendanceAction(raw);
+  const result = await saveAttendanceGridAction(raw);
 
   if (!result.ok) return { error: result.error };
   if (!result.data.ok) return { error: result.data.message };
 
   redirectNever(
-    attendanceUrl(String(raw.lessonId ?? ""), String(raw.date ?? ""), true)
+    attendanceUrl(String(raw.classId ?? ""), String(raw.date ?? ""), true)
   );
 }
