@@ -41,11 +41,12 @@ function mergeMessages(sources: Messages[]): Messages {
 export default getRequestConfig(async ({ locale }) => {
   if (!locales.includes(locale as (typeof locales)[number])) notFound();
 
-  const [base, attendance, grades, journal] = await Promise.all([
+  const [base, attendance, grades, journal, ranking] = await Promise.all([
     import(`../../messages/${locale}.json`),
     import(`../../messages/attendance/${locale}.json`),
     import(`../../messages/grades/${locale}.json`),
     import(`../../messages/journal/${locale}.json`),
+    import(`../../messages/ranking/${locale}.json`),
   ]);
 
   return {
@@ -54,6 +55,7 @@ export default getRequestConfig(async ({ locale }) => {
       attendance.default,
       grades.default,
       journal.default,
+      ranking.default,
     ]),
   };
 });
