@@ -367,6 +367,47 @@ model Penalty {
 }
 
 // ------------------------------------------------------------------
+// Reyting sozlamalari (yakuniy ball formulasi)
+// ------------------------------------------------------------------
+
+/**
+ * BITTA QATORLI SOZLAMA (singleton).
+ *
+ * Reyting formulasi koeffitsientlari shu yerda turadi, URL da emas. Sabab:
+ * reyting mukofot va jazoga asos bo'ladi, shuning uchun hamma bir xil
+ * raqamni ko'rishi kerak. URL da bo'lsa har kim o'z linkida boshqa
+ * koeffitsient yozib, boshqa reyting ko'rsatishi mumkin bo'lardi.
+ *
+ * `id` doim "global" — jadvalda faqat bitta qator bo'ladi. Shu tufayli
+ * `upsert` bilan yangilanadi va "qaysi sozlama to'g'ri?" savoli tug'ilmaydi.
+ *
+ * Koeffitsientlar BUTUN SON sifatida saqlanadi (foiz yoki yuzdan bir),
+ * chunki suzuvchi nuqtali son (Float) yig'indida kichik xatolar beradi va
+ * bir xil ballga ega ikki o'quvchi noto'g'ri tartibda chiqib qolishi mumkin:
+ *   - gradeWeight = 80  → baho ulushi 80%
+ *   - testWeight = 20   → test ulushi 20%
+ *   - penaltyFactor = 50 → har bir jarima balli 0.50 ball yechadi
+ *
+ * XAVFSIZLIK: bu qatorni FAQAT ADMIN o'zgartiradi (Server Action ichida
+ * tekshiriladi) va har o'zgarish `AuditLog` ga tushadi — kim, qachon,
+ * nimadan nimaga o'zgartirgani ko'rinib turadi.
+ */
+model RankingSetting {
+  id String @id @default("global")
+
+  gradeWeight   Int @default(80)
+  testWeight    Int @default(20)
+  penaltyFactor Int @default(50)
+
+  // Oxirgi kim o'zgartirgani. Ataylab `User` ga relation qilinmadi:
+  // sozlama qatori foydalanuvchi o'chirilsa ham buzilmasligi kerak.
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+// ------------------------------------------------------------------
 // To'lovlar / kontraktlar (buxgalteriya)
 // ------------------------------------------------------------------
 
