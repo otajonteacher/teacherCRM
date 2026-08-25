@@ -35,12 +35,18 @@ import { AttendanceGrid, type AttendanceColumn } from "./attendance-grid";
  * kunini ko'rishi kerak ("3-darsdan keyin ketib qolgan"). Lekin YOZISH
  * faqat o'z ustunida mumkin — boshqasi bloklangan.
  *
+ * SINF TANLASH MAJBURIY (egasining talabi, baholar sahifasi bilan bir xil):
+ * `select` ga `required` qo'yilgan, sarlavhada qizil yulduzcha turadi.
+ * "Ko'rsatish" bosilganda sinf tanlanmagan bo'lsa brauzerning o'zi
+ * ogohlantirish chiqaradi va forma yuborilmaydi.
+ *
  * XAVFSIZLIK:
  *   - sinflar `classScope` bilan cheklanadi (begona sinf ID kiritilsa
  *     ro'yxatda topilmaydi va sahifa bo'sh qoladi)
  *   - `lessonScope` — qaysi ustun tahrirlanadi
  *   - PARENT hech narsa yozmaydi: hisobot ko'rinishiga yuboriladi
- *   - haqiqiy himoya baribir Server Action ichida qayta tekshiriladi
+ *   - `required` faqat qulaylik: server baribir sinf tanlanmasa jadvalni
+ *     chizmaydi, Server Action esa hammasini qaytadan tekshiradi
  */
 
 type PageProps = {
@@ -192,9 +198,26 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           */}
           <form className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">{t("chooseClass")}</span>
+              <span className="text-muted-foreground">
+                {t("chooseClass")}{" "}
+                {/* Majburiy maydon belgisi — forma to'ldirishdan oldin ko'rinadi. */}
+                <span
+                  aria-hidden="true"
+                  className="font-semibold text-destructive"
+                >
+                  *
+                </span>
+              </span>
               <select
                 name="classId"
+                /*
+                  `required` — "Ko'rsatish" bosilganda sinf tanlanmagan bo'lsa
+                  brauzer o'zi select ustida ogohlantirish chiqaradi va forma
+                  yuborilmaydi. Bo'sh variantning `value` si bo'sh bo'lgani
+                  uchun shu ishlaydi.
+                */
+                required
+                aria-required="true"
                 defaultValue={classId}
                 className={selectClassName}
               >
@@ -219,6 +242,17 @@ export default async function AttendancePage({ searchParams }: PageProps) {
 
             <Button type="submit">{t("apply")}</Button>
           </form>
+
+          {/*
+            Yulduzchaning izohi. Alohida tarjima kaliti qo'shilmadi —
+            `needClass` matni aynan shu ma'noni beradi.
+          */}
+          <p className="mt-2 text-xs text-muted-foreground">
+            <span aria-hidden="true" className="text-destructive">
+              *
+            </span>{" "}
+            {t("needClass")}
+          </p>
         </CardContent>
       </Card>
 
