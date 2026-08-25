@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { Award, Medal, Trophy } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth-guard";
 import { classScope, studentScope } from "@/lib/scope";
@@ -41,6 +42,19 @@ import { RankingSettingsForm } from "./settings-form";
  * sozlamalari). Baho jurnalda qo'yiladi, jarima o'z bo'limida, test o'z
  * modulida. Reyting faqat hisoblaydi.
  *
+ * JADVAL USTUNLARI TARTIBI:
+ *   O'quvchi | Sinf | <har bir fan o'rtachasi> | Umumiy o'rtacha |
+ *   Baho soni | Davomat % | Jarima ball | Test o'rtachasi |
+ *   Yakuniy ball | O'rin
+ *
+ * "Har bir fan o'rtachasi" ustunlari ATAYLAB dinamik: faqat shu chorakda
+ * baho qo'yilgan fanlar chiqadi. Sabab — bo'sh ustun jadvalni kengaytiradi,
+ * lekin hech qanday ma'lumot bermaydi. Shuning uchun "Matematika o'rtacha"
+ * ustuni faqat matematikadan baho bo'lsa paydo bo'ladi.
+ *
+ * O'rin ustuni ENG OXIRIDA turadi — o'qish tartibi "kim, nima, natijada
+ * nechanchi" bo'lishi kerak. 1-2-3 o'rinlar uch xil belgi bilan ajratiladi.
+ *
  * XAVFSIZLIK — ATAYLAB QILINGAN ASIMMETRIYA:
  * Sinflar `classScope` bilan cheklanadi. Lekin sinf ichidagi o'quvchilar
  * `studentScope` bilan TORAYTIRILMAYDI — chunki o'rinni hisoblash uchun
@@ -56,10 +70,50 @@ import { RankingSettingsForm } from "./settings-form";
 const selectClassName =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
+/**
+ * Dastlabki uch o'rin belgisi. Uchta AR MAXSUS belgi ishlatilgan:
+ * kubok (1), medal (2), nishon (3) — faqat rang bilan farqlash yetarli
+ * emas, rangni ajratmaydigan foydalanuvchilar ham shaklidan tushunadi.
+ * Shu sababli har bir belgiga `title` ham beriladi.
+ */
+function RankMedal({ rank, label }: { rank: number; label: string }) {
+  const className = "h-4 w-4 shrink-0";
+
+  if (rank === 1) {
+    return (
+      <Trophy
+        aria-hidden="true"
+        title={label}
+        className={`${className} text-amber-500`}
+      />
+    );
+  }
+
+  if (rank === 2) {
+    return (
+      <Medal
+        aria-hidden="true"
+        title={label}
+        className={`${className} text-slate-400`}
+      />
+    );
+  }
+
+  return (
+    <Award
+      aria-hidden="true"
+      title={label}
+      className={`${className} text-amber-700`}
+    />
+  );
+}
+
 type RankingRow = {
   id: string;
   fullName: string;
   className: string;
+  // Fan bo'yicha o'rtacha: kalit — fan id si, qiymat — o'rtacha yoki null.
+  subjectAverages: Map<string, number | null>;
   gradeAverage: number | null;
   gradeCount: number;
   attendance: number | null;
@@ -303,6 +357,16 @@ export default async function RankingPage({
     gradesBySubject.set(grade.subjectId, subjectAll);
   }
 
+  /**
+   * Jadvalda ustun oladigan fanlar: faqat SHU CHORAKDA bahosi bor fanlar.
+   * `subjects` ro'yxati yil bo'yicha diagramma uchun ham ishlatiladi,
+   * shuning uchun u kengroq bo'lishi mumkin — jadvalga esa bo'sh ustun
+   * kerak emas.
+   */
+  const tableSubjects = subjects.filter((subject) =>
+    gradesBySubject.has(subject.id)
+  );
+
   const attendanceCounts = new Map<
     string,
     { PRESENT: number; ABSENT: number; LATE: number; EXCUSED: number }
@@ -337,11 +401,24 @@ export default async function RankingPage({
     const penaltyPoints = penaltyByStudent.get(student.id) ?? 0;
     const testAverage = averageOf(testsByStudent.get(student.id) ?? []);
 
+    // Har bir fan uchun alohida o'rtacha. Baho bo'lmasa — null, ya'ni
+    // jadvalda chiziqcha. Nolga aylantirilmaydi: baho qo'yilmagani va
+    // nol olgani mutlaqo boshqa narsa.
+    const subjectAverages = new Map<string, number | null>();
+    for (const subject of tableSubjects) {
+      subjectAverages.set(
+        subject.id,
+        averageOf(gradesByStudentSubject.get(`${student.id}|${subject.id}`) ?? [])
+      );
+    }
+
     return {
       id: student.id,
       fullName: `${student.lastName} ${student.firstName}`,
       className: student.class?.name ?? "—",
+      subjectAverages,
       gradeAverage,
+      // Umumiy baholar soni — fanlar kesimida emas, hammasi birgalikda.
       gradeCount: values.length,
       // Davomat foizi mavjud hisobot bilan bir xil formuladan olinadi.
       attendance: counts ? attendancePercent(counts) : null,
@@ -456,6 +533,8 @@ export default async function RankingPage({
   }));
 
   const hasGrades = quarterGrades.length > 0;
+
+  const medalLabels = [t("medalGold"), t("medalSilver"), t("medalBronze")];
 
   return (
     <div className="space-y-6">
@@ -642,7 +721,8 @@ export default async function RankingPage({
             <CardHeader>
               <CardTitle className="text-lg">{t("tableTitle")}</CardTitle>
               <CardDescription>
-                {t("tableHint")} · {t("studentCount", { count: rows.length })}
+                {t("tableHint")} · {t("medalHint")} ·{" "}
+                {t("studentCount", { count: rows.length })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -653,23 +733,36 @@ export default async function RankingPage({
                   {/* Faqat gorizontal aylantirish: ichki vertikal skroll
                       ataylab yo'q — jadval to'liq ko'rinishi kerak. */}
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-sm">
+                    {/* `min-w-full`: jadval o'z mazmuniga qarab kengayadi,
+                        shuning uchun ism-familya ustuni eng uzun ismga
+                        qarab o'lchanadi va siqilib qolmaydi. */}
+                    <table className="min-w-full border-collapse text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="w-14 px-2 py-2 align-bottom text-center font-medium">
-                            <VerticalHeader className="h-16">
-                              {t("rankColumn")}
-                            </VerticalHeader>
-                          </th>
-                          {/* Ism-familya ustuni eng uzun ismga qarab
-                              kengayadi — hech qachon siqilmaydi. */}
-                          <th className="sticky left-0 z-10 whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
+                          {/* `w-px` + `whitespace-nowrap`: ustun aynan eng
+                              uzun ism kengligini oladi, ortiqcha bo'sh joy
+                              qoldirmaydi. */}
+                          <th className="sticky left-0 z-10 w-px whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
                             {t("student")}
                           </th>
-                          <th className="whitespace-nowrap border-l px-3 py-2 align-bottom text-left font-medium">
-                            {t("className")}
+                          <th className="w-14 border-l px-1 py-2 align-bottom font-medium">
+                            <VerticalHeader className="h-16">
+                              {t("className")}
+                            </VerticalHeader>
                           </th>
-                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
+                          {tableSubjects.map((subject) => (
+                            <th
+                              key={subject.id}
+                              className="w-16 border-l px-1 py-2 align-bottom font-medium"
+                            >
+                              <VerticalHeader>
+                                {t("subjectAverageHeader", {
+                                  subject: subject.nameUz,
+                                })}
+                              </VerticalHeader>
+                            </th>
+                          ))}
+                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
                             <VerticalHeader>{t("gradeAverage")}</VerticalHeader>
                           </th>
                           <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
@@ -691,27 +784,32 @@ export default async function RankingPage({
                           <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
                             <VerticalHeader>{t("finalScore")}</VerticalHeader>
                           </th>
+                          {/* O'rin ustuni eng oxirida. */}
+                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
+                            <VerticalHeader className="h-16">
+                              {t("rankColumn")}
+                            </VerticalHeader>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {tableRows.map((row) => (
                           <tr key={row.id} className="border-b">
-                            <td
-                              className={`px-2 py-1.5 text-center font-semibold ${
-                                row.rank !== null && row.rank <= 3
-                                  ? "text-emerald-700"
-                                  : ""
-                              }`}
-                            >
-                              {row.rank ?? "—"}
-                            </td>
-                            <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-1.5">
+                            <td className="sticky left-0 z-10 w-px whitespace-nowrap bg-background px-3 py-1.5">
                               {row.fullName}
                             </td>
-                            <td className="whitespace-nowrap border-l px-3 py-1.5 text-muted-foreground">
+                            <td className="border-l px-2 py-1.5 text-center text-muted-foreground">
                               {row.className}
                             </td>
-                            <td className="border-l px-2 py-1.5 text-center">
+                            {tableSubjects.map((subject) => (
+                              <td
+                                key={subject.id}
+                                className="border-l px-2 py-1.5 text-center"
+                              >
+                                {row.subjectAverages.get(subject.id) ?? "—"}
+                              </td>
+                            ))}
+                            <td className="border-l bg-amber-50 px-2 py-1.5 text-center font-medium">
                               {row.gradeAverage ?? "—"}
                             </td>
                             <td className="border-l px-2 py-1.5 text-center text-muted-foreground">
@@ -730,6 +828,17 @@ export default async function RankingPage({
                             </td>
                             <td className="border-l bg-amber-100/70 px-2 py-1.5 text-center font-semibold">
                               {row.score ?? "—"}
+                            </td>
+                            <td className="border-l bg-amber-100/70 px-2 py-1.5">
+                              <div className="flex items-center justify-center gap-1 font-semibold">
+                                {row.rank !== null && row.rank <= 3 ? (
+                                  <RankMedal
+                                    rank={row.rank}
+                                    label={medalLabels[row.rank - 1]}
+                                  />
+                                ) : null}
+                                <span>{row.rank ?? "—"}</span>
+                              </div>
                             </td>
                           </tr>
                         ))}
