@@ -305,7 +305,19 @@ model Grade {
   quarterId String
   value     Int
   type      GradeType @default(DAILY)
-  date      DateTime  @default(now())
+
+  // FAQAT SANA — vaqt YO'Q (`@db.Date`), Attendance modeli bilan bir xil.
+  //
+  // Nega muhim: jurnal ham, hisobot ham sanani ANIQ TENGLIK bilan qidiradi
+  // (`date: toDate("2026-08-26")` yoki `date: { in: [...] }`). Agar ustunda
+  // vaqt saqlansa, 14:05 da yozilgan baho "00:00" bilan solishtirilganda
+  // topilmaydi — baho bazada bor, lekin hech qaysi ekranda ko'rinmaydi.
+  //
+  // `@default(now())` ATAYLAB olib tashlandi: sanani har doim ilova yuboradi
+  // (o'qituvchi tanlagan kun). Baza "bugun" deb o'zidan to'ldirsa, jadval
+  // tahriri paytida noto'g'ri kunga baho tushib qolishi mumkin edi.
+  date      DateTime  @db.Date
+
   teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   teacherId String?
 
@@ -326,6 +338,22 @@ model Grade {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // TAKRORLANISHGA QARSHI CHEKLOV.
+  //
+  // Bir o'quvchiga, bitta darsda, bitta kunda, bitta tur bo'yicha faqat
+  // BITTA baho bo'ladi. Ilgari bu qoida faqat kodda edi: jurnal saqlashdan
+  // oldin mavjud bahoni o'qib, bo'lsa `update`, bo'lmasa `create` qilardi.
+  // Ammo ikki so'rov bir vaqtda kelsa (tugma ikki marta bosildi, admin va
+  // o'qituvchi bir paytda saqladi) ikkisi ham "mavjud emas" deb ko'rib,
+  // ikkita baho yozib ketardi. Endi ikkinchisi baza darajasida to'xtaydi.
+  //
+  // `type` ham kalitga kiradi: bir kunda kundalik ham, nazorat ham baho
+  // bo'lishi normal holat — ular bir-birini almashtirmaydi.
+  //
+  // ESLATMA: `lessonId` NULL bo'lgan ESKI baholar bu cheklovga tushmaydi —
+  // PostgreSQL da NULL o'zi bilan teng emas, shuning uchun unique ishlamaydi.
+  // Ular uchun `lessonId` ni to'ldirish (backfill) tavsiya etiladi.
+  @@unique([studentId, lessonId, date, type])
   @@index([studentId, quarterId])
   @@index([subjectId, quarterId])
   // Jurnal so'rovi: "shu darsning shu kundagi baholari".
