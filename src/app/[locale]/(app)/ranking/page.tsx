@@ -65,6 +65,21 @@ import { RankingSettingsForm } from "./settings-form";
  * o'rin butun sinf bo'yicha hisoblanadi, lekin boshqa bolalarning ismi,
  * bahosi va davomati klientga umuman yuborilmaydi. Diagrammalarda ham
  * ota-onaga ismlar ko'rsatilmaydi — unga faqat sinf o'rtachalari ko'rinadi.
+ *
+ * TEZLIK — SO'ROVLAR TO'LQINI (WATERFALL) YO'Q QILINDI:
+ * Ilgari bu sahifa o'nga yaqin baza so'rovini KETMA-KET bajarardi: har biri
+ * o'zidan oldingisini kutardi, natijada kechikishlar QO'SHILARDI (10 x 80 ms
+ * = 0.8 s faqat kutishga). Aslida ularning ko'pi bir-biriga bog'liq emas.
+ *
+ * Endi so'rovlar bog'liqligiga qarab 5 qadamga guruhlangan, har qadam ichida
+ * `Promise.all` bilan PARALLEL ketadi:
+ *   1-qadam: sozlamalar + o'quv yillari
+ *   2-qadam: sinflar        (yil tanlangandan keyin ma'lum)
+ *   3-qadam: o'quvchilar    (sinflar ma'lum bo'lgandan keyin)
+ *   4-qadam: baho, davomat, jarima, test, yillik baho, ota-ona filtri
+ *            — hammasi bir vaqtda
+ *   5-qadam: fanlar nomi    (qaysi fanlar borligi 4-qadamdan ma'lum)
+ * Hisob-kitob mantiqi va natija o'zgarmagan — faqat kutish vaqti qisqargan.
  */
 
 const selectClassName =
@@ -74,37 +89,43 @@ const selectClassName =
  * Dastlabki uch o'rin belgisi. Uchta AR MAXSUS belgi ishlatilgan:
  * kubok (1), medal (2), nishon (3) — faqat rang bilan farqlash yetarli
  * emas, rangni ajratmaydigan foydalanuvchilar ham shaklidan tushunadi.
- * Shu sababli har bir belgiga `title` ham beriladi.
+ *
+ * NEGA `<span>` ICHIDA:
+ * `lucide-react` komponentlari `title` propini QABUL QILMAYDI — uning
+ * tiplari `LucideProps` bilan cheklangan va `title` u yerda yo'q. Ilgari
+ * ikonkaga to'g'ridan-to'g'ri `title={label}` berilgan edi, natijada
+ * `npm run typecheck` uchta TS2322 xatosi bilan yiqilardi.
+ *
+ * Shu sababli belgi `<span>` ichiga o'raldi. Bu faqat tipni tuzatish emas,
+ * balki to'g'riroq yechim ham: SVG ichidagi `title` atributi brauzerlarda
+ * ishonchsiz ko'rsatiladi, `<span title>` esa hamma joyda oddiy qalqib
+ * chiquvchi izoh beradi.
+ *
+ * a11y: ikonka `aria-hidden`, ma'no esa o'rovchi `<span>` da
+ * `role="img"` + `aria-label` orqali beriladi — shunda ekran o'qigich
+ * "1-o'rin" deb aytadi, ikki marta takrorlamaydi.
  */
 function RankMedal({ rank, label }: { rank: number; label: string }) {
   const className = "h-4 w-4 shrink-0";
 
-  if (rank === 1) {
-    return (
-      <Trophy
-        aria-hidden="true"
-        title={label}
-        className={`${className} text-amber-500`}
-      />
+  const icon =
+    rank === 1 ? (
+      <Trophy aria-hidden="true" className={`${className} text-amber-500`} />
+    ) : rank === 2 ? (
+      <Medal aria-hidden="true" className={`${className} text-slate-400`} />
+    ) : (
+      <Award aria-hidden="true" className={`${className} text-amber-700`} />
     );
-  }
-
-  if (rank === 2) {
-    return (
-      <Medal
-        aria-hidden="true"
-        title={label}
-        className={`${className} text-slate-400`}
-      />
-    );
-  }
 
   return (
-    <Award
-      aria-hidden="true"
+    <span
+      role="img"
+      aria-label={label}
       title={label}
-      className={`${className} text-amber-700`}
-    />
+      className="inline-flex shrink-0"
+    >
+      {icon}
+    </span>
   );
 }
 
@@ -142,26 +163,32 @@ export default async function RankingPage({
   const isAdmin = user.role === "ADMIN";
   const isParent = user.role === "PARENT";
 
-  // Koeffitsientlar bazadan. Qator hali yaratilmagan bo'lsa — standart
-  // qiymatlar bilan ishlaymiz, sahifa xato bermasligi kerak.
-  const stored = await db.rankingSetting.findUnique({
-    where: { id: RANKING_SETTING_ID },
-    select: { gradeWeight: true, testWeight: true, penaltyFactor: true },
-  });
-  const settings: RankingSettings = stored ?? DEFAULT_RANKING_SETTINGS;
+  // ----------------------------------------------------------------
+  // 1-qadam: sozlamalar va o'quv yillari — bir-biriga bog'liq emas.
+  // ----------------------------------------------------------------
 
-  const years = await db.academicYear.findMany({
-    orderBy: { name: "desc" },
-    select: {
-      id: true,
-      name: true,
-      isCurrent: true,
-      quarters: {
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, startDate: true, endDate: true },
+  const [stored, years] = await Promise.all([
+    // Koeffitsientlar bazadan. Qator hali yaratilmagan bo'lsa — standart
+    // qiymatlar bilan ishlaymiz, sahifa xato bermasligi kerak.
+    db.rankingSetting.findUnique({
+      where: { id: RANKING_SETTING_ID },
+      select: { gradeWeight: true, testWeight: true, penaltyFactor: true },
+    }),
+    db.academicYear.findMany({
+      orderBy: { name: "desc" },
+      select: {
+        id: true,
+        name: true,
+        isCurrent: true,
+        quarters: {
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, startDate: true, endDate: true },
+        },
       },
-    },
-  });
+    }),
+  ]);
+
+  const settings: RankingSettings = stored ?? DEFAULT_RANKING_SETTINGS;
 
   const selectedYear =
     years.find((year) => year.id === searchParams.year?.trim()) ??
@@ -181,6 +208,10 @@ export default async function RankingPage({
   const scope = isRankingScope(searchParams.scope)
     ? searchParams.scope
     : "class";
+
+  // ----------------------------------------------------------------
+  // 2-qadam: sinflar — tanlangan yil ma'lum bo'lgandan keyin.
+  // ----------------------------------------------------------------
 
   const classes = selectedYear
     ? await db.class.findMany({
@@ -223,6 +254,10 @@ export default async function RankingPage({
   const cohortIds = cohortClasses.map((klass) => klass.id);
   const ready = Boolean(selectedQuarter) && cohortIds.length > 0;
 
+  // ----------------------------------------------------------------
+  // 3-qadam: o'quvchilar ro'yxati.
+  // ----------------------------------------------------------------
+
   const students = ready
     ? await db.student.findMany({
         where: { classId: { in: cohortIds }, status: "ACTIVE" },
@@ -237,35 +272,45 @@ export default async function RankingPage({
     : [];
 
   const studentIds = students.map((student) => student.id);
+  const hasStudents = ready && studentIds.length > 0;
 
-  // Ota-ona uchun: qaysi qator ko'rsatiladi. Boshqa qatorlar hisobga olinadi,
-  // lekin ekranga chiqmaydi.
-  const visibleIds =
+  // ----------------------------------------------------------------
+  // 4-qadam: ko'rsatkichlar — HAMMASI PARALLEL.
+  //
+  // Beshta so'rov ham faqat `studentIds` va tanlangan chorakka bog'liq,
+  // bir-biriga esa umuman bog'liq emas. Shuning uchun ularni ketma-ket
+  // kutishning ma'nosi yo'q.
+  // ----------------------------------------------------------------
+
+  const [
+    parentVisibleRows,
+    quarterGrades,
+    attendanceRows,
+    penaltyRows,
+    testRows,
+    yearGrades,
+  ] = await Promise.all([
+    // Ota-ona uchun: qaysi qator ko'rsatiladi. Boshqa qatorlar hisobga
+    // olinadi, lekin ekranga chiqmaydi.
     isParent && studentIds.length > 0
-      ? new Set(
-          (
-            await db.student.findMany({
-              where: { AND: [studentScope(user), { id: { in: studentIds } }] },
-              select: { id: true },
-            })
-          ).map((student) => student.id)
-        )
-      : null;
+      ? db.student.findMany({
+          where: { AND: [studentScope(user), { id: { in: studentIds } }] },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
 
-  const quarterGrades =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.grade.findMany({
+    hasStudents && selectedQuarter
+      ? db.grade.findMany({
           where: {
             studentId: { in: studentIds },
             quarterId: selectedQuarter.id,
           },
           select: { studentId: true, subjectId: true, value: true },
         })
-      : [];
+      : Promise.resolve([]),
 
-  const attendanceRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.attendance.findMany({
+    hasStudents && selectedQuarter
+      ? db.attendance.findMany({
           where: {
             studentId: { in: studentIds },
             date: {
@@ -275,11 +320,10 @@ export default async function RankingPage({
           },
           select: { studentId: true, status: true },
         })
-      : [];
+      : Promise.resolve([]),
 
-  const penaltyRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.penalty.findMany({
+    hasStudents && selectedQuarter
+      ? db.penalty.findMany({
           where: {
             studentId: { in: studentIds },
             date: {
@@ -289,12 +333,11 @@ export default async function RankingPage({
           },
           select: { studentId: true, points: true },
         })
-      : [];
+      : Promise.resolve([]),
 
-  // Testlar moduli hali yo'q — jadval bo'sh bo'lishi normal holat.
-  const testRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.testResult.findMany({
+    // Testlar moduli hali yo'q — jadval bo'sh bo'lishi normal holat.
+    hasStudents && selectedQuarter
+      ? db.testResult.findMany({
           where: {
             studentId: { in: studentIds },
             takenAt: {
@@ -304,19 +347,27 @@ export default async function RankingPage({
           },
           select: { studentId: true, percent: true },
         })
-      : [];
+      : Promise.resolve([]),
 
-  // Yil bo'yicha diagramma uchun butun yilning baholari.
-  const yearGrades =
-    ready && studentIds.length > 0 && quarters.length > 0
-      ? await db.grade.findMany({
+    // Yil bo'yicha diagramma uchun butun yilning baholari.
+    hasStudents && quarters.length > 0
+      ? db.grade.findMany({
           where: {
             studentId: { in: studentIds },
             quarterId: { in: quarters.map((quarter) => quarter.id) },
           },
           select: { subjectId: true, quarterId: true, value: true },
         })
-      : [];
+      : Promise.resolve([]),
+  ]);
+
+  const visibleIds = parentVisibleRows
+    ? new Set(parentVisibleRows.map((student) => student.id))
+    : null;
+
+  // ----------------------------------------------------------------
+  // 5-qadam: fanlar nomi — qaysi fanlar kerakligi endi ma'lum.
+  // ----------------------------------------------------------------
 
   const subjectIds = Array.from(
     new Set([
