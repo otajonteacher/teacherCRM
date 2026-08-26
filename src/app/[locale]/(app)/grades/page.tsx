@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
-import { redirectNever, requireRole } from "@/lib/auth-guard";
+import { requireRole } from "@/lib/auth-guard";
 import { classScope, studentScope } from "@/lib/scope";
 import { toDate } from "@/lib/academics";
 import {
@@ -46,6 +46,20 @@ import {
  * ADMIN hamma narsani o'zgartira oladi (bu ham egasining qoidasi), lekin
  * o'zgartirish JOYI bitta: jurnal. Admin uchun bu sahifada jurnalga o'tish
  * havolasi chiqadi — huquq cheklanmaydi, faqat yo'l bittaga keltiriladi.
+ *
+ * OTA-ONA (TZ 2.1)
+ * ----------------
+ * Ota-ona bu sahifani KO'RADI. Ilgari sahifa uni /dashboard ga qaytarib
+ * yuborardi — TZ 2.1 ga qarshi edi, chunki `rbac.ts` va menyuda /grades
+ * ota-onaga ochiq deb yozilgan. Qo'shimcha filtr YOZILMADI va kerak emas:
+ *   - `classScope(user)`   — ota-onaga faqat farzandi o'qiydigan sinf;
+ *   - `studentScope(user)` — faqat o'z farzandi.
+ * Ya'ni doira allaqachon bitta o'quvchi bilan chegaralangan.
+ *
+ * "O'rin" ustuni ota-onaga KO'RSATILMAYDI: reyting shu sahifada ko'rinadigan
+ * o'quvchilar ro'yxati ustida hisoblanadi, ota-onada esa ro'yxat bitta
+ * o'quvchidan iborat — natija har doim "1" bo'lib chalg'itadi. Sinf ichidagi
+ * haqiqiy o'rin "Reyting" sahifasida chiqadi.
  *
  * IKKI KO'RINISH
  * --------------
@@ -101,10 +115,9 @@ export default async function GradesPage({
   };
 }) {
   const user = await requireRole("ADMIN", "TEACHER", "PARENT");
-  if (user.role === "PARENT") {
-    // Ota-ona uchun alohida ko'rinish keyin tayyorlanadi.
-    redirectNever("/dashboard");
-  }
+  const isParent = user.role === "PARENT";
+  // Ota-onada ro'yxat bitta o'quvchidan iborat — o'rin ma'nosini yo'qotadi.
+  const showRank = !isParent;
 
   const t = await getTranslations("grades");
 
@@ -122,8 +135,9 @@ export default async function GradesPage({
 
   /**
    * Hisobot doirasi — `classScope`, ya'ni sinf rahbari o'z sinfining to'liq
-   * hisobotini ko'radi. Bu xavfsiz, chunki sahifa faqat o'qish uchun. Yozish
-   * doirasi (`gradingLessonScope`) ancha tor — ikkisi ataylab bir xil emas.
+   * hisobotini ko'radi, ota-ona esa faqat farzandi sinfini. Bu xavfsiz,
+   * chunki sahifa faqat o'qish uchun. Yozish doirasi (`gradingLessonScope`)
+   * ancha tor — ikkisi ataylab bir xil emas.
    */
   const classes = await db.class.findMany({
     where: classScope(user),
@@ -136,7 +150,8 @@ export default async function GradesPage({
    *
    * Faqat bitta sinfga ruxsati bor foydalanuvchi uchun avtomatik tanlanadi —
    * bu "majburiy" qoidasiga qarshi emas: tanlov baribir bitta, lekin
-   * foydalanuvchi ikki marta tugma bosmaydi (avvalgi shikoyat).
+   * foydalanuvchi ikki marta tugma bosmaydi (avvalgi shikoyat). Bitta
+   * farzandi bor ota-ona uchun ham shu yo'l ishlaydi.
    * Boshqa hollarda sinf tanlanmaguncha jadval umuman chizilmaydi.
    */
   const selectedClass =
@@ -287,6 +302,7 @@ export default async function GradesPage({
 
   const journalHref = `/journal?${new URLSearchParams({
     date: from,
+    type,
     ...(selectedClass ? { classId: selectedClass.id } : {}),
   }).toString()}`;
 
@@ -303,7 +319,7 @@ export default async function GradesPage({
       </div>
 
       <p className="rounded-md border border-sky-600/40 bg-sky-600/10 px-4 py-3 text-sm text-sky-800">
-        {t("readOnlyNotice")}
+        {isParent ? t("parentNotice") : t("readOnlyNotice")}
       </p>
 
       <Card>
@@ -364,23 +380,26 @@ export default async function GradesPage({
               ))}
             </select>
 
-            <input
-              type="number"
-              name="topN"
-              min={1}
-              step={1}
-              defaultValue={topN ?? ""}
-              placeholder={t("topN")}
-              className={selectClassName}
-              aria-label={t("topN")}
-            />
+            {/* O'rin ustuni ota-onada yo'q — "dastlabki o'rinlar" ham keraksiz. */}
+            {showRank ? (
+              <input
+                type="number"
+                name="topN"
+                min={1}
+                step={1}
+                defaultValue={topN ?? ""}
+                placeholder={t("topN")}
+                className={selectClassName}
+                aria-label={t("topN")}
+              />
+            ) : null}
 
             <Button type="submit" variant="secondary">
               {t("apply")}
             </Button>
           </form>
           <p className="mt-2 text-xs text-muted-foreground">
-            {t("classRequired")} {t("topNHint")}
+            {t("classRequired")} {showRank ? t("topNHint") : null}
           </p>
         </CardContent>
       </Card>
@@ -402,7 +421,7 @@ export default async function GradesPage({
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-lg">
-                {selectedClass.name} · {periodLabel}
+                {selectedClass.name} · {periodLabel} · {t(`type.${type}`)}
               </CardTitle>
               <CardDescription>
                 {mode === "week" ? t("weekHint") : t("dayHint")}
@@ -437,9 +456,11 @@ export default async function GradesPage({
                         <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
                           <VerticalHeader>{t("averageColumn")}</VerticalHeader>
                         </th>
-                        <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
-                          <VerticalHeader>{t("rankColumn")}</VerticalHeader>
-                        </th>
+                        {showRank ? (
+                          <th className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold">
+                            <VerticalHeader>{t("rankColumn")}</VerticalHeader>
+                          </th>
+                        ) : null}
                       </tr>
                     </thead>
                   ) : (
@@ -471,12 +492,14 @@ export default async function GradesPage({
                         >
                           <VerticalHeader>{t("averageColumn")}</VerticalHeader>
                         </th>
-                        <th
-                          rowSpan={2}
-                          className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold"
-                        >
-                          <VerticalHeader>{t("rankColumn")}</VerticalHeader>
-                        </th>
+                        {showRank ? (
+                          <th
+                            rowSpan={2}
+                            className="w-16 border-l bg-amber-100/70 px-1 py-2 align-bottom font-semibold"
+                          >
+                            <VerticalHeader>{t("rankColumn")}</VerticalHeader>
+                          </th>
+                        ) : null}
                       </tr>
                       <tr className="border-b bg-muted/50">
                         {subjectColumns.flatMap((column) => [
@@ -601,9 +624,11 @@ export default async function GradesPage({
                           <td className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
                             {average === null ? "—" : average.toFixed(1)}
                           </td>
-                          <td className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
-                            {rank === undefined ? "—" : rank}
-                          </td>
+                          {showRank ? (
+                            <td className="border-l bg-amber-100/70 px-2 py-2 text-center font-semibold">
+                              {rank === undefined ? "—" : rank}
+                            </td>
+                          ) : null}
                         </tr>
                       );
                     })}
