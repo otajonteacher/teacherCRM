@@ -10,6 +10,7 @@ import {
   worstStatus,
   type AttendanceStatusValue,
 } from "@/lib/attendance";
+import { GRADE_TYPES, isGradeType, type GradeTypeValue } from "@/lib/grades";
 import {
   abbreviationOf,
   buildLessonColumns,
@@ -33,6 +34,12 @@ import { JournalForm, type JournalColumn } from "./journal-form";
  * kun tanlanadi — va qog'oz jurnaldagidek jadval chiqadi. Davomat va baho
  * BIR JOYDA, bitta "Saqlash" bilan.
  *
+ * BAHO TURI (`type`) — uchinchi filtr: kundalik / nazorat / imtihon.
+ * Har bir tur alohida varaq: bir kunda o'quvchi kundalik ham, nazorat ham
+ * baho olishi mumkin va ular bir-birining ustiga yozilmaydi. Ilgari server
+ * har doim `DAILY` yozardi, shuning uchun "Baholar" sahifasidagi nazorat va
+ * imtihon filtrlari abadiy bo'sh chiqardi (TZ 3.6 buzilgan edi).
+ *
  * "Baholar" sahifasidan farqi:
  *   Jurnal  — KIRITISH joyi: bir kun, barcha fanlar, faqat o'z fani ochiq
  *   Baholar — KO'RISH joyi: kunlik/haftalik o'zlashtirish va reyting hisoboti
@@ -52,7 +59,12 @@ const selectClassName =
 export default async function JournalPage({
   searchParams,
 }: {
-  searchParams: { classId?: string; date?: string; saved?: string };
+  searchParams: {
+    classId?: string;
+    date?: string;
+    type?: string;
+    saved?: string;
+  };
 }) {
   // Jurnal — faqat o'qituvchi va admin uchun. Ota-ona va buxgalter kirmaydi.
   const user = await requireRole("ADMIN", "TEACHER");
@@ -64,6 +76,12 @@ export default async function JournalPage({
     dateParam && DATE_TEXT_PATTERN.test(dateParam) ? dateParam : todayText();
   const dayOfWeek = dayOfWeekFromText(date);
   const classId = searchParams.classId?.trim() || undefined;
+
+  // Noma'lum tur kelsa jimgina `DAILY` — sahifa xato bermasligi kerak.
+  const typeParam = searchParams.type?.trim().toUpperCase();
+  const gradeType = (
+    typeParam && isGradeType(typeParam) ? typeParam : "DAILY"
+  ) as GradeTypeValue;
 
   /**
    * Sinf ro'yxati: faqat foydalanuvchi DARS BERADIGAN sinflar.
@@ -135,14 +153,14 @@ export default async function JournalPage({
 
   const studentIds = students.map((student) => student.id);
 
-  // Baholar — bitta so'rov (N+1 yo'q).
+  // Baholar — bitta so'rov (N+1 yo'q). Tur bo'yicha filtrlanadi.
   const grades =
     studentIds.length > 0
       ? await db.grade.findMany({
           where: {
             studentId: { in: studentIds },
             date: toDate(date),
-            type: "DAILY",
+            type: gradeType,
           },
           select: {
             studentId: true,
@@ -195,8 +213,20 @@ export default async function JournalPage({
     }
   }
 
-  // Davomat: o'z darsimdagi belgi ustun, bo'lmasa kun bo'yicha eng "og'ir"
-  // holat ko'rsatiladi (boshqa o'qituvchi qo'ygan belgi ham ko'rinsin).
+  /**
+   * DAVOMAT — TUZATILGAN NUQSON.
+   *
+   * Ilgari o'z darsida belgi bo'lmasa, kun bo'yicha eng "og'ir" holat
+   * inputning QIYMATIGA yozilardi. Natijada boshqa o'qituvchi qo'ygan belgi
+   * formaga tushib, "Saqlash" bosilganda o'qituvchining O'Z darsiga yozilib
+   * qolardi — ya'ni bir dars belgisi ikkinchisiga jimgina ko'chirilardi.
+   *
+   * Endi qat'iy ajratilgan:
+   *   - `initialAttendance` — FAQAT o'z darslaridagi belgi (tahrirlanadi,
+   *     forma bilan yuboriladi);
+   *   - `otherLessonMarks` — boshqa darslardagi eng og'ir holat. Faqat
+   *     ko'rsatiladi (placeholder + tooltip), yuborilmaydi.
+   */
   const attendanceRows =
     studentIds.length > 0
       ? await db.attendance.findMany({
@@ -210,25 +240,27 @@ export default async function JournalPage({
       : [];
 
   const initialAttendance: Record<string, string> = {};
-  const dayStatuses = new Map<string, AttendanceStatusValue[]>();
+  const otherLessonStatuses = new Map<string, AttendanceStatusValue[]>();
 
   for (const row of attendanceRows) {
     if (myLessonIds.has(row.lessonId)) {
       initialAttendance[row.studentId] = abbreviationOf(row.status);
+      continue;
     }
-    const list = dayStatuses.get(row.studentId) ?? [];
+    const list = otherLessonStatuses.get(row.studentId) ?? [];
     list.push(row.status);
-    dayStatuses.set(row.studentId, list);
+    otherLessonStatuses.set(row.studentId, list);
   }
 
-  for (const [studentId, statuses] of dayStatuses) {
-    if (initialAttendance[studentId] !== undefined) continue;
+  const otherLessonMarks: Record<string, string> = {};
+  for (const [studentId, statuses] of otherLessonStatuses) {
     const worst = worstStatus(statuses);
-    if (worst) initialAttendance[studentId] = abbreviationOf(worst);
+    if (worst) otherLessonMarks[studentId] = abbreviationOf(worst);
   }
 
   const cancelHref = `/journal?${new URLSearchParams({
     date,
+    type: gradeType,
     ...(selectedClass ? { classId: selectedClass.id } : {}),
   }).toString()}`;
 
@@ -250,8 +282,8 @@ export default async function JournalPage({
           <CardTitle className="text-lg">{t("chooseTitle")}</CardTitle>
           <CardDescription>{t("chooseHint")}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form className="grid gap-3 sm:grid-cols-3" method="get">
+        <CardContent className="space-y-2">
+          <form className="grid gap-3 sm:grid-cols-4" method="get">
             <select
               name="classId"
               defaultValue={selectedClass?.id ?? ""}
@@ -272,10 +304,25 @@ export default async function JournalPage({
               className={selectClassName}
             />
 
+            <select
+              name="type"
+              defaultValue={gradeType}
+              aria-label={t("typeLabel")}
+              className={selectClassName}
+            >
+              {GRADE_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`type.${value}`)}
+                </option>
+              ))}
+            </select>
+
             <Button type="submit" variant="secondary">
               {t("apply")}
             </Button>
           </form>
+
+          <p className="text-xs text-muted-foreground">{t("typeHint")}</p>
         </CardContent>
       </Card>
 
@@ -295,7 +342,7 @@ export default async function JournalPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              {selectedClass.name} · {date}
+              {selectedClass.name} · {date} · {t(`type.${gradeType}`)}
             </CardTitle>
             <CardDescription>
               {t("lessonCount", { count: columns.length })}
@@ -308,9 +355,10 @@ export default async function JournalPage({
               <p className="text-sm text-muted-foreground">{t("noStudents")}</p>
             ) : (
               <JournalForm
-                key={`${selectedClass.id}-${date}`}
+                key={`${selectedClass.id}-${date}-${gradeType}`}
                 classId={selectedClass.id}
                 date={date}
+                gradeType={gradeType}
                 students={students.map((student) => ({
                   id: student.id,
                   fullName: `${student.lastName} ${student.firstName}`,
@@ -318,6 +366,7 @@ export default async function JournalPage({
                 columns={columns}
                 initialGrades={initialGrades}
                 initialAttendance={initialAttendance}
+                otherLessonMarks={otherLessonMarks}
                 canEdit={myLessonIds.size > 0}
                 cancelHref={cancelHref}
               />
