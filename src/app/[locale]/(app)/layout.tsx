@@ -1,7 +1,7 @@
 import { GraduationCap } from "lucide-react";
 import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
 import { redirect } from "@/i18n/navigation";
+import { getSession } from "@/lib/session";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -15,8 +15,13 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Autentifikatsiya qorovuli (RBAC poydevori)
-  const session = await auth();
+  // Autentifikatsiya qorovuli (RBAC poydevori).
+  //
+  // TEZLIK: `auth()` emas, `getSession()` — u bitta so'rov doirasida
+  // keshlanadi. Sahifaning o'zi ham `requireRole` orqali sessiyani
+  // so'raydi; ilgari bu ikkinchi marta JWT deshifrlash va ba'zan
+  // qo'shimcha baza so'roviga olib kelardi.
+  const session = await getSession();
   if (!session?.user) {
     redirect("/login");
   }

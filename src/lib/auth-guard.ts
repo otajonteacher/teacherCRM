@@ -1,8 +1,8 @@
 import type { Role } from "@prisma/client";
 import type { Session } from "next-auth";
-import { auth } from "@/auth";
 import { redirect } from "@/i18n/navigation";
 import { hasRole } from "./rbac";
+import { getSession } from "./session";
 
 /**
  * SERVER TOMON QOROVULLARI (Punkt 1)
@@ -18,6 +18,10 @@ import { hasRole } from "./rbac";
  * MUHIM: bu qorovullar "qaysi ROLGA ruxsat" degan savolga javob beradi.
  * "Qaysi QATORLARGA ruxsat" degan savol — src/lib/scope.ts (Punkt 2).
  * Ikkisi birga ishlatiladi.
+ *
+ * TEZLIK: sessiya `getSession()` orqali o'qiladi — u bitta so'rov doirasida
+ * keshlanadi, shuning uchun layout va sahifa ikkalasi ham qorovul chaqirsa
+ * JWT bir marta deshifrlanadi va baza bir marta o'qiladi.
  */
 
 export type SessionUser = NonNullable<Session["user"]>;
@@ -41,7 +45,7 @@ export function redirectNever(path: string): never {
  * Sessiya yo'q bo'lsa — /login ga yo'naltiradi (bu yerdan keyin kod bajarilmaydi).
  */
 export async function requireAuth(): Promise<SessionUser> {
-  const session = await auth();
+  const session = await getSession();
 
   if (!session?.user) {
     redirectNever("/login");

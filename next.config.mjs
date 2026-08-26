@@ -46,6 +46,25 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     /*
+     * TEZLIK — BARREL IMPORT MUAMMOSI
+     * ================================
+     *
+     * `lucide-react` ichida mingdan ortiq ikonka bor va ularning hammasi
+     * bitta `index.js` (barrel) orqali eksport qilinadi. Biz `import
+     * { Trophy } from "lucide-react"` deb yozganimizda dev rejimida
+     * Next.js butun shu barrelni ko'chiradi — ya'ni bitta ikonka uchun
+     * mingta modul kompilyatsiya qilinadi. Aynan shu narsa lokalda
+     * sahifa ochilishini bir necha soniyaga cho'zadi.
+     *
+     * `optimizePackageImports` esa importni avtomatik ravishda to'g'ridan
+     * to'g'ri modulga aylantiradi (`lucide-react/dist/esm/icons/trophy`),
+     * shuning uchun faqat ishlatilgan ikonka kompilyatsiya qilinadi.
+     *
+     * Kodni o'zgartirish kerak emas — importlar avvalgidek qoladi.
+     */
+    optimizePackageImports: ["lucide-react", "date-fns"],
+
+    /*
      * Excel import Server Action orqali fayl yuboradi. Next.js standart
      * chegarasi 1 MB — undan katta fayl kodimizga yetib ham bormay xato
      * beradi. `src/lib/excel.ts` da chegara 5 MB, shuning uchun bu yerda
