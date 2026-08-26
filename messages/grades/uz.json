@@ -3,6 +3,7 @@
     "title": "Baholar",
     "subtitle": "O'zlashtirish hisoboti — faqat ko'rish uchun.",
     "readOnlyNotice": "Bu sahifada baho qo'yilmaydi. Baho faqat \"Jurnal\" sahifasida fan o'qituvchisi tomonidan kiritiladi.",
+    "parentNotice": "Bu yerda farzandingizning baholari ko'rsatiladi. Sinf ichidagi o'rni \"Reyting\" sahifasida chiqadi. Baho haqida savol bo'lsa fan o'qituvchisi yoki sinf rahbariga murojaat qiling.",
     "chooseTitle": "Hisobotni tanlash",
     "chooseHint": "Bir kunlik ko'rinishda ustunlar — shu kunning darslari. Bir haftalik ko'rinishda har fan ostida haftaning kunlari alohida ustun bo'lib chiqadi.",
     "chooseClass": "Sinfni tanlang",

@@ -5,7 +5,7 @@
   "journal": {
     "title": "Jurnal",
     "subtitle": "Kunlik jurnal: davomat va shu kunning barcha darslari. Faqat o'zingiz o'tadigan dars ustuni ochiq.",
-    "chooseTitle": "Sinf va kunni tanlash",
+    "chooseTitle": "Sinf, kun va baho turini tanlash",
     "chooseHint": "Ustunlar shu kundagi dars jadvalidan olinadi. Bir fandan ikki dars bo'lsa ikkinchisi \"Matematika 2\" deb nomlanadi.",
     "chooseClass": "Sinfni tanlang",
     "apply": "Ko'rsatish",
@@ -19,9 +19,17 @@
     "averageColumn": "O'rtacha",
     "rankColumn": "O'rin",
     "topN": "Dastlabki o'rinlar",
+    "typeLabel": "Baho turi",
+    "type": {
+      "DAILY": "Kundalik",
+      "CONTROL": "Nazorat",
+      "EXAM": "Imtihon"
+    },
+    "typeHint": "Har bir tur alohida varaq: nazorat bahosi kundalik bahoning ustiga yozilmaydi.",
     "gridHint": "Baho: 0–100. Davomat: K, SZ, SL, KCH. Qo'yilgan bahoni ustiga bosib darhol o'zgartirish mumkin.",
     "lockedTooltip": "Bu siz o'tadigan fan emas",
     "autoPresentHint": "Baho qo'yilgan o'quvchi avtomatik \"keldi\" (K) deb belgilanadi.",
+    "otherLessonMark": "Boshqa darsdagi belgi: {mark}. O'z darsingizga belgi qo'yilmagan.",
     "readOnly": "Bu kunda bu sinfda darsingiz yo'q — jurnal faqat ko'rish uchun.",
     "legendTitle": "Belgilar",
     "legend": {

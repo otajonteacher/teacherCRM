@@ -3,6 +3,7 @@
     "title": "Grades",
     "subtitle": "Performance report — view only.",
     "readOnlyNotice": "Grades cannot be entered here. Only the subject teacher enters grades on the \"Journal\" page.",
+    "parentNotice": "These are your child's grades. See the \"Ranking\" page for the place in class. For questions about a grade, contact the subject teacher or the homeroom teacher.",
     "chooseTitle": "Report options",
     "chooseHint": "In day view the columns are the lessons of that day. In week view each subject gets one column per day.",
     "chooseClass": "Select a class",

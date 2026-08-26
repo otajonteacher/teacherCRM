@@ -37,6 +37,11 @@ import { saveJournal, type JournalFormState } from "./actions";
  * O'rtacha va o'rin TIRIK hisoblanadi — raqam kiritilishi bilan yangilanadi,
  * saqlashni kutib turmaydi.
  *
+ * DAVOMAT USTUNI. Faqat foydalanuvchining O'Z darsidagi belgi tahrirlanadi.
+ * Boshqa o'qituvchi qo'ygan belgi placeholder (xira matn) sifatida
+ * ko'rsatiladi va formaga TUSHMAYDI — aks holda "Saqlash" bosilganda begona
+ * belgi o'qituvchining o'z darsiga ko'chib o'tardi.
+ *
  * Bu yerdagi barcha tekshiruvlar faqat QULAYLIK uchun. Haqiqiy himoya
  * serverda: zod 0–100, `gradingLessonScope` bilan o'z darslarini serverning
  * o'zi topishi, o'quvchi va dars filtri. Klientdagi `disabled` ni brauzer
@@ -51,12 +56,16 @@ type StudentRow = { id: string; fullName: string };
 type JournalFormProps = {
   classId: string;
   date: string;
+  /** Baho turi: "DAILY" | "CONTROL" | "EXAM". Server zod bilan tekshiradi. */
+  gradeType: string;
   students: StudentRow[];
   columns: JournalColumn[];
   /** Saqlangan baholar: journalCellKey(studentId, lessonId) → qiymat. */
   initialGrades: Record<string, number>;
-  /** Saqlangan davomat: studentId → qisqartma ("K", "SZ", "SL", "KCH"). */
+  /** O'Z darsidagi davomat: studentId → qisqartma ("K", "SZ", "SL", "KCH"). */
   initialAttendance: Record<string, string>;
+  /** Boshqa darslardagi belgi — faqat ko'rsatish uchun, yuborilmaydi. */
+  otherLessonMarks: Record<string, string>;
   /** Foydalanuvchining shu kunda shu sinfda darsi bormi? */
   canEdit: boolean;
   cancelHref: string;
@@ -108,10 +117,12 @@ function SubmitButton() {
 export function JournalForm({
   classId,
   date,
+  gradeType,
   students,
   columns,
   initialGrades,
   initialAttendance,
+  otherLessonMarks,
   canEdit,
   cancelHref,
 }: JournalFormProps) {
@@ -188,6 +199,8 @@ export function JournalForm({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="classId" value={classId} />
       <input type="hidden" name="date" value={date} />
+      {/* Baho turi — server shu maydonga qarab kundalik/nazorat/imtihon yozadi. */}
+      <input type="hidden" name="type" value={gradeType} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="text-sm text-muted-foreground">{t("gridHint")}</p>
@@ -244,6 +257,7 @@ export function JournalForm({
               const average = averageById.get(student.id) ?? null;
               const rank = ranks[student.id];
               const mark = (attendance[student.id] ?? "").toUpperCase();
+              const otherMark = otherLessonMarks[student.id] ?? "";
 
               return (
                 <tr key={student.id} className="border-b last:border-b-0">
@@ -271,9 +285,21 @@ export function JournalForm({
                       disabled={!canEdit}
                       maxLength={3}
                       list="attendance-marks"
+                      /*
+                        Boshqa darsdagi belgi PLACEHOLDER sifatida ko'rinadi.
+                        Placeholder forma bilan yuborilmaydi — shu tufayli
+                        begona belgi o'z darsimga jimgina ko'chib o'tmaydi.
+                      */
+                      placeholder={mark === "" ? otherMark : ""}
                       aria-label={`${student.fullName} — ${t("attendance")}`}
-                      title={canEdit ? t("gridHint") : t("readOnly")}
-                      className={`${cellInputClassName} font-semibold uppercase ${
+                      title={
+                        !canEdit
+                          ? t("readOnly")
+                          : mark === "" && otherMark !== ""
+                            ? t("otherLessonMark", { mark: otherMark })
+                            : t("gridHint")
+                      }
+                      className={`${cellInputClassName} font-semibold uppercase placeholder:font-normal placeholder:text-muted-foreground/60 ${
                         attendanceCellStyle[mark] ?? "bg-background"
                       }`}
                     />

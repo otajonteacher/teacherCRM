@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { dateField, idField, toNumber } from "./academics";
 import { ATTENDANCE_STATUSES, type AttendanceStatusValue } from "./attendance";
-import { GRADE_MAX, GRADE_MIN } from "./grades";
+import { GRADE_MAX, GRADE_MIN, GRADE_TYPES } from "./grades";
 
 /**
  * KUNLIK JURNAL — VALIDATSIYA VA HISOB-KITOB
@@ -14,6 +14,12 @@ import { GRADE_MAX, GRADE_MIN } from "./grades";
  * Ustunlar — SHU KUNNING DARSLARI. Bir fandan kunda ikki dars bo'lsa ikki
  * ustun chiqadi va ikkinchisi "Matematika 2" deb nomlanadi. Shu sababli baho
  * fanga emas, DARSGA bog'lanadi (`Grade.lessonId`).
+ *
+ * BAHO TURI (`type`): bitta jurnal ekrani uchta daftarni almashtiradi —
+ * kundalik (DAILY), nazorat (CONTROL) va imtihon (EXAM). Tur formadan keladi
+ * va serverda zod bilan tekshiriladi. Ilgari server har doim `DAILY` yozardi,
+ * shuning uchun `/grades` sahifasidagi "nazorat" va "imtihon" filtrlari
+ * abadiy bo'sh chiqardi (TZ 3.6 buzilgan edi).
  *
  * XAVFSIZLIK QOIDASI (egasining talabi): o'qituvchi FAQAT o'zi o'tadigan
  * dars ustuniga baho qo'yadi. Boshqa ustun inputi bloklanadi va tooltip
@@ -154,6 +160,22 @@ export function buildLessonColumns(
 // Saqlash sxemasi
 // ------------------------------------------------------------------
 
+/**
+ * Baho turini tozalaydi. Bo'sh yoki noma'lum qiymat kelsa `DAILY` —
+ * jurnalning sukutdagi holati. Katta-kichik harf farq qilmaydi.
+ *
+ * Diqqat: bu yerda `null` qaytarilmaydi, chunki tur MAJBURIY maydon. Noto'g'ri
+ * turni jimgina `DAILY` ga aylantirish xato qaytarishdan xavfsizroq: aks holda
+ * eski (turi yo'q) forma yuborilganda saqlash butunlay ishlamay qolardi.
+ */
+function toGradeType(value: unknown): unknown {
+  const first = Array.isArray(value) ? value[0] : value;
+  if (typeof first !== "string") return "DAILY";
+
+  const text = first.trim().toUpperCase();
+  return GRADE_TYPES.some((type) => type === text) ? text : "DAILY";
+}
+
 function toJournalInput(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
 
@@ -202,6 +224,7 @@ function toJournalInput(raw: unknown): unknown {
   return {
     classId: source.classId,
     date: source.date,
+    type: source.type,
     grades,
     attendance,
   };
@@ -219,6 +242,7 @@ export const journalSaveSchema = z.preprocess(
   z.object({
     classId: idField,
     date: dateField,
+    type: z.preprocess(toGradeType, z.enum(GRADE_TYPES)),
     grades: z
       .array(
         z.object({
