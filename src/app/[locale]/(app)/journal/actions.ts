@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
+import { logAudit } from "@/lib/audit";
 import { redirectNever } from "@/lib/auth-guard";
 import { gradingLessonScope } from "@/lib/scope";
 import { toDate, type SaveResult } from "@/lib/academics";
 import { dayOfWeekFromText, type AttendanceStatusValue } from "@/lib/attendance";
 import { journalSaveSchema } from "@/lib/journal";
+import { type GradeTypeValue } from "@/lib/grades";
 import { queueAbsenceNotices } from "@/lib/absence-notice";
 
 /**
@@ -16,12 +18,12 @@ import { queueAbsenceNotices } from "@/lib/absence-notice";
  *
  * Xavfsizlik zanjiri:
  *   1. `roles` — faqat ADMIN va TEACHER yozadi (PARENT/ACCOUNTANT umuman yo'q)
- *   2. zod — kirish shakli, 0–100 oralig'i, qisqartmalar tekshiriladi
+ *   2. zod — kirish shakli, 0–100 oralig'i, baho turi, qisqartmalar
  *   3. `gradingLessonScope` — O'Z darslari SERVERDA topiladi; klient qaysi
  *      ustun ochiq ekanini AYTMAYDI
  *   4. o'quvchi filtri — faqat SHU sinf o'quvchilari
- *   5. chorak tekshiruvi — `Grade.quarterId` majburiy
- *   6. audit — kim, qachon, qaysi sinf jurnalini to'ldirdi
+ *   5. o'quv yili + chorak tekshiruvi — `Grade.quarterId` majburiy
+ *   6. audit — kim, qachon, qaysi bahoni nimadan nimaga o'zgartirdi
  *
  * 3-QADAM ENG MUHIMI. Jadvaldagi bloklangan input — bu faqat ko'rinish:
  * brauzer konsolidan `disabled` ni olib tashlab, boshqa fan ustuniga qiymat
@@ -29,6 +31,25 @@ import { queueAbsenceNotices } from "@/lib/absence-notice";
  * umuman ishonmaydi — o'zi `gradingLessonScope` bilan qidiradi va begona
  * darsga kelgan katakchani JIMGINA tashlab yuboradi (xato xabari hujumchiga
  * qaysi dars mavjudligini bildirmasligi kerak).
+ *
+ * 5-QADAM — TUZATILGAN NUQSON. Ilgari chorak `where: academicYearId ? {...} : {}`
+ * bilan qidirilardi. `Class.academicYearId` ixtiyoriy maydon (`onDelete: SetNull`),
+ * ya'ni bo'sh bo'lishi mumkin — bunday holatda BARCHA o'quv yillarining
+ * choraklari yuklanib, baho butunlay boshqa yilning choragiga jimgina tushib
+ * ketardi. Endi o'quv yili bo'lmasa saqlash to'xtaydi va foydalanuvchiga
+ * aniq xabar chiqadi.
+ *
+ * TRANZAKSIYA CHEGARASI — TUZATILGAN NUQSON. Prisma'da `$transaction` sukut
+ * bo'yicha 5 sekundda uziladi (`maxWait` 2s). To'la sinf jurnali ~240 baho +
+ * ~60 davomat yozuvi degani; ular bitta-bitta `await` bilan yozilsa chegaraga
+ * urilib "Transaction already closed" xatosi chiqardi. Endi:
+ *   - o'chirish  -> bitta `deleteMany`
+ *   - yaratish   -> bitta `createMany`
+ *   - davomat    -> holat bo'yicha guruhlangan `updateMany` (ko'pi bilan 4 ta)
+ *                   + bitta `createMany`
+ *   - yangilash  -> faqat HAQIQATDA o'zgargan katakchalar (odatda bir nechta)
+ * va yuqori chegara ham ko'tarildi. Natijada bazaga borish soni ~300 dan
+ * ~10 ga tushdi.
  *
  * AVTOMATIK "KELDI": baho qo'yilgan o'quvchi darsda bo'lgan — shuning uchun
  * davomat belgilanmagan bo'lsa PRESENT qo'yiladi. Bu o'qituvchining ishini
@@ -38,11 +59,24 @@ import { queueAbsenceNotices } from "@/lib/absence-notice";
 
 export type JournalFormState = { error?: string };
 
+/** Auditga yoziladigan bitta baho o'zgarishi. */
+type GradeChange = {
+  studentId: string;
+  lessonId: string;
+  action: "CREATE" | "UPDATE" | "DELETE";
+  from: number | null;
+  to: number | null;
+};
+
+/** Audit `meta` cheksiz o'smasligi uchun chegara. */
+const AUDIT_CHANGE_LIMIT = 300;
+
 const saveJournalAction = createAction({
   roles: ["ADMIN", "TEACHER"],
   schema: journalSaveSchema,
   handler: async (input, user): Promise<SaveResult> => {
     const dayOfWeek = dayOfWeekFromText(input.date);
+    const gradeType: GradeTypeValue = input.type;
 
     // 3-qadam: O'Z darslari. ADMIN uchun doira bo'sh — hammasi ochiq.
     const myLessons = await db.lesson.findMany({
@@ -62,6 +96,16 @@ const saveJournalAction = createAction({
     }
 
     const lessonById = new Map(myLessons.map((lesson) => [lesson.id, lesson]));
+
+    // 5-qadam (birinchi yarmi): o'quv yili MAJBURIY — pastdagi izohga qarang.
+    const academicYearId = myLessons[0].class.academicYearId;
+    if (!academicYearId) {
+      return {
+        ok: false,
+        message:
+          "Bu sinfga o'quv yili biriktirilmagan. Avval sinf sozlamasida o'quv yilini tanlang.",
+      };
+    }
 
     // 4-qadam: faqat shu sinf o'quvchilari.
     const classStudents = await db.student.findMany({
@@ -85,36 +129,43 @@ const saveJournalAction = createAction({
     }
 
     const date = toDate(input.date);
-    const academicYearId = myLessons[0].class.academicYearId;
 
-    // 5-qadam: chorak. Baho qo'yilmasa (faqat davomat) chorak kerak emas.
+    // 5-qadam (ikkinchi yarmi): chorak. Baho qo'yilmasa (faqat davomat)
+    // chorak umuman kerak emas — shuning uchun so'rov ham qilinmaydi.
     const needsQuarter = gradeEntries.some((entry) => entry.value !== null);
+    let quarterId: string | null = null;
 
-    const quarters = await db.quarter.findMany({
-      where: academicYearId ? { academicYearId } : {},
-      select: { id: true, startDate: true, endDate: true },
-    });
-    const quarter = quarters.find(
-      (row) => row.startDate <= date && date <= row.endDate
-    );
+    if (needsQuarter) {
+      const quarters = await db.quarter.findMany({
+        where: { academicYearId },
+        select: { id: true, startDate: true, endDate: true },
+      });
+      const quarter = quarters.find(
+        (row) => row.startDate <= date && date <= row.endDate
+      );
 
-    if (needsQuarter && !quarter) {
-      return {
-        ok: false,
-        message: `Bu sanaga mos chorak topilmadi: ${input.date}. O'quv yili va chorak sanalarini tekshiring.`,
-      };
+      if (!quarter) {
+        return {
+          ok: false,
+          message: `Bu sanaga mos chorak topilmadi: ${input.date}. O'quv yili va chorak sanalarini tekshiring.`,
+        };
+      }
+      quarterId = quarter.id;
     }
 
     /**
      * Mavjud baholarni SERVER o'zi topadi — klientdan baho ID si olinmaydi.
      * Aks holda hujumchi begona ID yuborib boshqa o'quvchining bahosini
      * o'zgartirishi mumkin bo'lardi.
+     *
+     * Tur bo'yicha ham filtrlanadi: kundalik baho nazorat bahosining ustiga
+     * yozilmasligi kerak — ular jurnalda alohida varaq.
      */
     const existing = await db.grade.findMany({
       where: {
         studentId: { in: gradeEntries.map((entry) => entry.studentId) },
         date,
-        type: "DAILY",
+        type: gradeType,
       },
       select: {
         id: true,
@@ -154,96 +205,263 @@ const saveJournalAction = createAction({
       }
     }
 
-    let changed = 0;
+    // ----------------------------------------------------------------
+    // REJA TUZISH (bazaga tegmasdan)
+    //
+    // Avval nima o'zgarishini to'liq hisoblab olamiz, keyin tranzaksiya
+    // ichida to'plam bo'lib yozamiz. Shu tufayli tranzaksiya qisqa bo'ladi
+    // va auditga aniq ro'yxat yozish mumkin.
+    // ----------------------------------------------------------------
 
-    // Bitta tranzaksiya: yoki hammasi saqlanadi, yoki hech narsa.
-    await db.$transaction(async (tx) => {
-      for (const entry of gradeEntries) {
-        const lesson = lessonById.get(entry.lessonId);
-        if (!lesson) continue;
+    const gradeIdsToDelete: string[] = [];
+    const gradeUpdates: Array<{
+      id: string;
+      value: number;
+      lessonId: string;
+      teacherId: string;
+    }> = [];
+    const gradeCreates: Array<{
+      studentId: string;
+      subjectId: string;
+      lessonId: string;
+      quarterId: string;
+      value: number;
+      type: GradeTypeValue;
+      date: Date;
+      teacherId: string;
+    }> = [];
+    const gradeChanges: GradeChange[] = [];
 
-        const lessonKey = `${entry.studentId}|${entry.lessonId}`;
-        const legacyKey = `${entry.studentId}|${lesson.subjectId}`;
+    for (const entry of gradeEntries) {
+      const lesson = lessonById.get(entry.lessonId);
+      if (!lesson) continue;
 
-        let current = byLesson.get(lessonKey);
-        if (!current) {
-          current = legacyBySubject.get(legacyKey);
-          // Bir eski yozuv faqat BITTA ustunga asrab olinadi — aks holda bir
-          // fandan ikki dars bo'lganda ikkinchi ustun birinchisining ustiga
-          // yozib, bahoni yo'q qilib qo'yardi.
-          if (current) legacyBySubject.delete(legacyKey);
+      const lessonKey = `${entry.studentId}|${entry.lessonId}`;
+      const legacyKey = `${entry.studentId}|${lesson.subjectId}`;
+
+      let current = byLesson.get(lessonKey);
+      if (!current) {
+        current = legacyBySubject.get(legacyKey);
+        // Bir eski yozuv faqat BITTA ustunga asrab olinadi — aks holda bir
+        // fandan ikki dars bo'lganda ikkinchi ustun birinchisining ustiga
+        // yozib, bahoni yo'q qilib qo'yardi.
+        if (current) legacyBySubject.delete(legacyKey);
+      }
+
+      // Bo'sh katakcha = bahoni olib tashlash.
+      if (entry.value === null) {
+        if (current) {
+          gradeIdsToDelete.push(current.id);
+          gradeChanges.push({
+            studentId: entry.studentId,
+            lessonId: entry.lessonId,
+            action: "DELETE",
+            from: current.value,
+            to: null,
+          });
         }
+        continue;
+      }
 
-        // Bo'sh katakcha = bahoni olib tashlash.
-        if (entry.value === null) {
-          if (current) {
-            await tx.grade.delete({ where: { id: current.id } });
-            changed += 1;
-          }
+      if (current) {
+        // O'zgarmagan katakcha — bazaga tegmaymiz.
+        if (
+          current.value === entry.value &&
+          current.lessonId === entry.lessonId
+        ) {
           continue;
         }
 
-        if (current) {
-          // O'zgarmagan katakcha — bazaga tegmaymiz.
-          if (
-            current.value === entry.value &&
-            current.lessonId === entry.lessonId
-          ) {
-            continue;
-          }
-          await tx.grade.update({
-            where: { id: current.id },
-            data: {
-              value: entry.value,
-              lessonId: entry.lessonId,
-              teacherId: lesson.teacherId,
-            },
-          });
-        } else {
-          await tx.grade.create({
-            data: {
-              studentId: entry.studentId,
-              subjectId: lesson.subjectId,
-              lessonId: entry.lessonId,
-              // Yuqorida tekshirildi — bu yerda chorak albatta bor.
-              quarterId: quarter?.id as string,
-              value: entry.value,
-              type: "DAILY",
-              date,
-              teacherId: lesson.teacherId,
-            },
-          });
-        }
-        changed += 1;
+        gradeUpdates.push({
+          id: current.id,
+          value: entry.value,
+          lessonId: entry.lessonId,
+          teacherId: lesson.teacherId,
+        });
+        gradeChanges.push({
+          studentId: entry.studentId,
+          lessonId: entry.lessonId,
+          action: "UPDATE",
+          from: current.value,
+          to: entry.value,
+        });
+        continue;
       }
 
-      /**
-       * Davomat foydalanuvchining SHU KUNDAGI BARCHA darslariga yoziladi.
-       * Jurnalda bitta "Davomat" ustuni bor, ya'ni belgi kunga tegishli:
-       * "bugun keldi". Agar o'qituvchi shu sinfda kunda ikki dars o'tsa,
-       * ikkisiga ham bir xil belgi tushadi.
-       */
-      for (const [studentId, status] of statusByStudent) {
-        for (const lesson of myLessons) {
-          await tx.attendance.upsert({
+      gradeCreates.push({
+        studentId: entry.studentId,
+        subjectId: lesson.subjectId,
+        lessonId: entry.lessonId,
+        // Yuqorida tekshirildi — baho bo'lsa chorak albatta bor.
+        quarterId: quarterId as string,
+        value: entry.value,
+        type: gradeType,
+        date,
+        teacherId: lesson.teacherId,
+      });
+      gradeChanges.push({
+        studentId: entry.studentId,
+        lessonId: entry.lessonId,
+        action: "CREATE",
+        from: null,
+        to: entry.value,
+      });
+    }
+
+    /**
+     * Davomat foydalanuvchining SHU KUNDAGI BARCHA darslariga yoziladi.
+     * Jurnalda bitta "Davomat" ustuni bor, ya'ni belgi kunga tegishli:
+     * "bugun keldi". Agar o'qituvchi shu sinfda kunda ikki dars o'tsa,
+     * ikkisiga ham bir xil belgi tushadi.
+     *
+     * `upsert` ni tsikl ichida chaqirish o'rniga mavjud yozuvlarni oldin
+     * o'qib olamiz: shunda tranzaksiya ichida faqat guruhlangan `updateMany`
+     * va bitta `createMany` qoladi.
+     */
+    const studentIdsForAttendance = Array.from(statusByStudent.keys());
+    const existingAttendance =
+      studentIdsForAttendance.length > 0
+        ? await db.attendance.findMany({
             where: {
-              studentId_lessonId_date: {
-                studentId,
-                lessonId: lesson.id,
-                date,
-              },
+              studentId: { in: studentIdsForAttendance },
+              lessonId: { in: myLessons.map((lesson) => lesson.id) },
+              date,
             },
-            create: { studentId, lessonId: lesson.id, date, status },
-            update: { status },
-          });
-        }
-        changed += 1;
-      }
-    });
+            select: {
+              id: true,
+              studentId: true,
+              lessonId: true,
+              status: true,
+            },
+          })
+        : [];
 
+    const attendanceByKey = new Map(
+      existingAttendance.map((row) => [`${row.studentId}|${row.lessonId}`, row])
+    );
+
+    const attendanceIdsByStatus = new Map<AttendanceStatusValue, string[]>();
+    const attendanceCreates: Array<{
+      studentId: string;
+      lessonId: string;
+      date: Date;
+      status: AttendanceStatusValue;
+    }> = [];
+
+    for (const [studentId, status] of statusByStudent) {
+      for (const lesson of myLessons) {
+        const current = attendanceByKey.get(`${studentId}|${lesson.id}`);
+
+        if (!current) {
+          attendanceCreates.push({
+            studentId,
+            lessonId: lesson.id,
+            date,
+            status,
+          });
+          continue;
+        }
+
+        // Belgi o'zgarmagan — bazaga tegmaymiz.
+        if (current.status === status) continue;
+
+        const ids = attendanceIdsByStatus.get(status) ?? [];
+        ids.push(current.id);
+        attendanceIdsByStatus.set(status, ids);
+      }
+    }
+
+    const attendanceChanged =
+      attendanceCreates.length +
+      Array.from(attendanceIdsByStatus.values()).reduce(
+        (sum, ids) => sum + ids.length,
+        0
+      );
+
+    const changed = gradeChanges.length + attendanceChanged;
+
+    // Bo'sh tranzaksiya ochish keraksiz — darhol qaytamiz.
     if (changed === 0) {
       return { ok: false, message: "O'zgarish yo'q." };
     }
+
+    // Bitta tranzaksiya: yoki hammasi saqlanadi, yoki hech narsa.
+    await db.$transaction(
+      async (tx) => {
+        if (gradeIdsToDelete.length > 0) {
+          await tx.grade.deleteMany({
+            where: { id: { in: gradeIdsToDelete } },
+          });
+        }
+
+        for (const row of gradeUpdates) {
+          await tx.grade.update({
+            where: { id: row.id },
+            data: {
+              value: row.value,
+              lessonId: row.lessonId,
+              teacherId: row.teacherId,
+            },
+          });
+        }
+
+        if (gradeCreates.length > 0) {
+          // `skipDuplicates` — ikki marta yuborilgan forma dublikat
+          // yaratmasligi uchun (baza darajasidagi idempotentlik).
+          await tx.grade.createMany({
+            data: gradeCreates,
+            skipDuplicates: true,
+          });
+        }
+
+        for (const [status, ids] of attendanceIdsByStatus) {
+          await tx.attendance.updateMany({
+            where: { id: { in: ids } },
+            data: { status },
+          });
+        }
+
+        if (attendanceCreates.length > 0) {
+          await tx.attendance.createMany({
+            data: attendanceCreates,
+            skipDuplicates: true,
+          });
+        }
+      },
+      // To'la sinf jurnali uchun sukutdagi 5s/2s kam — pastdagi izohga qarang.
+      { timeout: 20_000, maxWait: 10_000 }
+    );
+
+    /**
+     * 6-qadam: AUDIT.
+     *
+     * Xavfsizlik auditining 24-punkti: baho o'zgarishi majburiy ravishda
+     * jurnalga tushishi kerak. Ilgari faqat "nechta katakcha yuborilgani"
+     * yozilardi — ya'ni o'chirilgan baho butunlay iz qoldirmasdi va
+     * "mening bahom yo'qolgan" degan da'voni tekshirish imkonsiz edi.
+     * Endi har bir o'zgarish nomma-nom yoziladi.
+     *
+     * `createAction` ning `audit` bloki ishlatilmadi, chunki u faqat KIRISH
+     * ma'lumotini ko'radi — natijani (eski -> yangi qiymat) bilmaydi.
+     */
+    await logAudit({
+      userId: user.id,
+      action: "UPDATE",
+      entity: "Grade",
+      entityId: input.classId,
+      meta: {
+        source: "journal",
+        date: input.date,
+        gradeType,
+        lessonIds: myLessons.map((lesson) => lesson.id),
+        created: gradeCreates.length,
+        updated: gradeUpdates.length,
+        deleted: gradeIdsToDelete.length,
+        attendanceChanged,
+        changes: gradeChanges.slice(0, AUDIT_CHANGE_LIMIT),
+        truncated: gradeChanges.length > AUDIT_CHANGE_LIMIT,
+      },
+    });
 
     // Tranzaksiyadan TASHQARIDA: SMS navbati asosiy saqlashni ushlab
     // turmasligi kerak.
@@ -263,17 +481,6 @@ const saveJournalAction = createAction({
 
     return { ok: true, id: input.classId };
   },
-  audit: {
-    action: "UPDATE",
-    entity: "Grade",
-    entityId: (input) => input.classId,
-    meta: (input) => ({
-      source: "journal",
-      date: input.date,
-      grades: input.grades.length,
-      attendance: input.attendance.length,
-    }),
-  },
 });
 
 function journalUrl(
@@ -284,6 +491,12 @@ function journalUrl(
     classId: String(raw.classId ?? ""),
     date: String(raw.date ?? ""),
   });
+
+  // Baho turi saqlanib qolishi kerak — aks holda nazorat bahosini kiritgan
+  // o'qituvchi saqlagandan keyin kundalik varaqqa qaytib tushardi.
+  const type = String(raw.type ?? "").trim();
+  if (type !== "") params.set("type", type);
+
   if (saved) params.set("saved", "1");
   return `/journal?${params.toString()}`;
 }
