@@ -49,9 +49,24 @@ import {
   testResultScope,
 } from "@/lib/scope";
 
-/** Test uchun sessiya foydalanuvchisi. */
-function userOf(role: string | undefined, id: string | undefined = "user-1") {
+/** Test uchun sessiya foydalanuvchisi (ID bor). */
+function userOf(role: string | undefined, id: string = "user-1") {
   return { id, role } as unknown as SessionUser;
+}
+
+/**
+ * ID SIZ foydalanuvchi — `requireUserId` ni tekshirish uchun.
+ *
+ * DIQQAT — TUZOQ: `userOf("TEACHER", undefined)` YOZIB BO'LMAYDI.
+ * JavaScript'da `undefined` argument STANDART QIYMATNI ishga tushiradi,
+ * ya'ni id aslida "user-1" bo'lib qoladi va `requireUserId` xato
+ * tashlamaydi. Testning o'zi yolg'on "o'tdi" holatiga tushib qolardi.
+ *
+ * Shu sababli ID siz holat ALOHIDA yordamchi bilan quriladi — bu yerda
+ * `id` kaliti obyektda umuman yo'q.
+ */
+function userWithoutId(role: string | undefined) {
+  return { role } as unknown as SessionUser;
 }
 
 /** Hech bir qatorga mos kelmaydigan filtr (fail-closed natijasi). */
@@ -121,22 +136,25 @@ describe("studentScope", () => {
    * `{ guardian: { userId: undefined } }` bo'lardi — Prisma bunday shartni
    * e'tiborsiz qoldirishi mumkin, natijada ota-ona BARCHA o'quvchini
    * ko'rib qolardi.
+   *
+   * Diqqat: `userWithoutId` ishlatiladi, `userOf(..., undefined)` EMAS —
+   * sabab yordamchining izohida yozilgan.
    */
   it("TEACHER da ID bo'lmasa xato tashlanadi", () => {
-    expect(() => studentScope(userOf("TEACHER", undefined))).toThrow(
+    expect(() => studentScope(userWithoutId("TEACHER"))).toThrow(
       /foydalanuvchi ID/i
     );
   });
 
   it("PARENT da ID bo'lmasa xato tashlanadi", () => {
-    expect(() => studentScope(userOf("PARENT", undefined))).toThrow(
+    expect(() => studentScope(userWithoutId("PARENT"))).toThrow(
       /foydalanuvchi ID/i
     );
   });
 
   it("ADMIN da ID bo'lmasa ham xato tashlanmaydi", () => {
     // ADMIN shoxida `requireUserId` chaqirilmaydi — filtr bo'sh.
-    expect(() => studentScope(userOf("ADMIN", undefined))).not.toThrow();
+    expect(() => studentScope(userWithoutId("ADMIN"))).not.toThrow();
   });
 });
 
