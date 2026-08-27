@@ -74,37 +74,35 @@ const selectClassName =
  * Dastlabki uch o'rin belgisi. Uchta AR MAXSUS belgi ishlatilgan:
  * kubok (1), medal (2), nishon (3) — faqat rang bilan farqlash yetarli
  * emas, rangni ajratmaydigan foydalanuvchilar ham shaklidan tushunadi.
- * Shu sababli har bir belgiga `title` ham beriladi.
+ *
+ * NIMA UCHUN `span` ichida:
+ * Ikonka komponentiga (`Trophy` va h.k.) to'g'ridan-to'g'ri `title` berish
+ * MUMKIN EMAS — lucide-react tipi `title` ni qabul qilmaydi va `tsc` TS2322
+ * xatosi beradi. Shuning uchun:
+ *   - tooltip matni      → `span` ning `title` atributida;
+ *   - ekran o'quvchisi   → `span` ga `role="img"` + `aria-label`;
+ *   - ikonkaning o'zi    → `aria-hidden`, ya'ni ikki marta o'qilmaydi.
  */
 function RankMedal({ rank, label }: { rank: number; label: string }) {
-  const className = "h-4 w-4 shrink-0";
+  const medals = {
+    1: { Icon: Trophy, color: "text-amber-500" },
+    2: { Icon: Medal, color: "text-slate-400" },
+    3: { Icon: Award, color: "text-amber-700" },
+  } as const;
 
-  if (rank === 1) {
-    return (
-      <Trophy
-        aria-hidden="true"
-        title={label}
-        className={`${className} text-amber-500`}
-      />
-    );
-  }
-
-  if (rank === 2) {
-    return (
-      <Medal
-        aria-hidden="true"
-        title={label}
-        className={`${className} text-slate-400`}
-      />
-    );
-  }
+  // 1-2-3 dan boshqa qiymat kelib qolsa nishon ko'rinishida chiziladi:
+  // sahifa hech qachon oq ekranga aylanmasligi kerak.
+  const { Icon, color } = medals[rank as 1 | 2 | 3] ?? medals[3];
 
   return (
-    <Award
-      aria-hidden="true"
+    <span
+      role="img"
+      aria-label={label}
       title={label}
-      className={`${className} text-amber-700`}
-    />
+      className="inline-flex shrink-0"
+    >
+      <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${color}`} />
+    </span>
   );
 }
 
