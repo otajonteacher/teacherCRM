@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { ShieldX } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
