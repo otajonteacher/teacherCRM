@@ -29,7 +29,34 @@ export const SESSION_MAX_AGE_SEC = 8 * 60 * 60;
 /** Token yangilanish oralig'i: 1 soat. */
 export const SESSION_UPDATE_AGE_SEC = 60 * 60;
 
+/**
+ * HOST ISHONCHI (`trustHost`)
+ * ===========================
+ *
+ * Auth.js v5 `Host` sarlavhasiga sukut bo'yicha ISHONMAYDI. Sababi:
+ * hujumkor `Host: yovuz.example` yuborsa, kutib turilgan qaytish (callback)
+ * havolasi o'sha saytga qarab ketishi mumkin.
+ *
+ * Vercel'da bu avtomatik hal bo'ladi. Biz o'z serverimizda ishlaganimizda
+ * (`npm start`, IIS/Nginx orqasida) esa Auth.js `UntrustedHost` xatosini
+ * beradi va login butunlay ishlamaydi:
+ *
+ *   [auth][error] UntrustedHost: Host must be trusted.
+ *
+ * Yechim ikki qatlamli:
+ *   1. `AUTH_URL` berilgan bo'lsa — Auth.js aynan o'sha manzilni ishlatadi.
+ *      Ishlab chiqarishda SHU usul tavsiya etiladi, chunki host qiymati
+ *      so'rovdan emas, sozlamadan olinadi.
+ *   2. `AUTH_URL` berilmagan bo'lsa (lokal `npm start`, dev) — so'rovdagi
+ *      host'ga ishonamiz, aks holda ilova umuman ishga tushmaydi.
+ *
+ * Ya'ni ishlab chiqarishda `AUTH_URL` ni qo'yish — bu shunchaki qulaylik
+ * emas, xavfsizlik chorasi. `.env.example` da izohlab qo'yilgan.
+ */
+const trustHost = true;
+
 export const authConfig = {
+  trustHost,
   session: {
     strategy: "jwt",
     maxAge: SESSION_MAX_AGE_SEC,
