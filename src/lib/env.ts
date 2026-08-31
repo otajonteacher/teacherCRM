@@ -11,9 +11,19 @@ import { z } from "zod";
  * AI/SMS kalitlari ixtiyoriy: yo'q bo'lsa modul "ulanmagan" holatda qoladi.
  */
 
-function emptyToUndefined(value: string | undefined): string | undefined {
-  if (value === undefined || value.trim() === "") return undefined;
-  return value;
+/**
+ * Bo'sh qiymatni `undefined` ga aylantiradi va chetdagi bo'shliqlarni kesadi.
+ *
+ * Nima uchun `trim` MUHIM: Windows `cmd` da `set QUERY_LOG=1 && npm run dev`
+ * yozilsa, qiymat `"1 "` bo'lib ketadi — `&&` dan oldingi bo'shliq ham
+ * qiymatga qo'shiladi. Xuddi shu narsa `.env` faylida qatordan keyin
+ * bo'shliq qolib ketsa ham sodir bo'ladi. Kesmasak, ilova tushunarsiz
+ * "Invalid enum value" xatosi bilan to'xtaydi.
+ */
+function cleanEnv(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
 }
 
 const envSchema = z.object({
@@ -48,20 +58,20 @@ const envSchema = z.object({
 });
 
 const parsed = envSchema.safeParse({
-  NODE_ENV: process.env.NODE_ENV,
-  DATABASE_URL: process.env.DATABASE_URL,
-  AUTH_SECRET: process.env.AUTH_SECRET,
-  SEED_PASSWORD: emptyToUndefined(process.env.SEED_PASSWORD),
-  OPENAI_API_KEY: emptyToUndefined(process.env.OPENAI_API_KEY),
-  ANTHROPIC_API_KEY: emptyToUndefined(process.env.ANTHROPIC_API_KEY),
-  GOOGLE_GENERATIVE_AI_API_KEY: emptyToUndefined(
+  NODE_ENV: cleanEnv(process.env.NODE_ENV),
+  DATABASE_URL: cleanEnv(process.env.DATABASE_URL),
+  AUTH_SECRET: cleanEnv(process.env.AUTH_SECRET),
+  SEED_PASSWORD: cleanEnv(process.env.SEED_PASSWORD),
+  OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY),
+  ANTHROPIC_API_KEY: cleanEnv(process.env.ANTHROPIC_API_KEY),
+  GOOGLE_GENERATIVE_AI_API_KEY: cleanEnv(
     process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ),
-  ESKIZ_EMAIL: emptyToUndefined(process.env.ESKIZ_EMAIL),
-  ESKIZ_PASSWORD: emptyToUndefined(process.env.ESKIZ_PASSWORD),
-  QUERY_LOG: emptyToUndefined(process.env.QUERY_LOG),
-  QUERY_LOG_MS: emptyToUndefined(process.env.QUERY_LOG_MS),
-  QUERY_LOG_PARAMS: emptyToUndefined(process.env.QUERY_LOG_PARAMS),
+  ESKIZ_EMAIL: cleanEnv(process.env.ESKIZ_EMAIL),
+  ESKIZ_PASSWORD: cleanEnv(process.env.ESKIZ_PASSWORD),
+  QUERY_LOG: cleanEnv(process.env.QUERY_LOG),
+  QUERY_LOG_MS: cleanEnv(process.env.QUERY_LOG_MS),
+  QUERY_LOG_PARAMS: cleanEnv(process.env.QUERY_LOG_PARAMS),
 });
 
 if (!parsed.success) {
