@@ -36,6 +36,15 @@ const envSchema = z.object({
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
   ESKIZ_EMAIL: z.string().email().optional(),
   ESKIZ_PASSWORD: z.string().min(1).optional(),
+
+  // —— Vaqtinchalik o'lchov sozlamalari (0-to'lqin 0.2) ——
+  // Faqat lokal ishlatiladi; ishlab chiqarishda e'tiborga olinmaydi.
+  /** `1` → har Prisma so'rovi va davomiyligi logga chiqadi. */
+  QUERY_LOG: z.enum(["0", "1"]).optional(),
+  /** "SEKIN" deb belgilash chegarasi, millisekundda (sukut: 100). */
+  QUERY_LOG_MS: z.coerce.number().int().positive().optional(),
+  /** `1` → SQL parametrlari ham chiqadi. Maxfiy ma'lumot bo'lishi mumkin. */
+  QUERY_LOG_PARAMS: z.enum(["0", "1"]).optional(),
 });
 
 const parsed = envSchema.safeParse({
@@ -50,6 +59,9 @@ const parsed = envSchema.safeParse({
   ),
   ESKIZ_EMAIL: emptyToUndefined(process.env.ESKIZ_EMAIL),
   ESKIZ_PASSWORD: emptyToUndefined(process.env.ESKIZ_PASSWORD),
+  QUERY_LOG: emptyToUndefined(process.env.QUERY_LOG),
+  QUERY_LOG_MS: emptyToUndefined(process.env.QUERY_LOG_MS),
+  QUERY_LOG_PARAMS: emptyToUndefined(process.env.QUERY_LOG_PARAMS),
 });
 
 if (!parsed.success) {
