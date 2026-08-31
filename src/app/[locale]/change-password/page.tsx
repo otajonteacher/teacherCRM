@@ -1,6 +1,7 @@
-export const dynamic = "force-dynamic";
 import { getTranslations } from "next-intl/server";
 import { ChangePasswordForm } from "./change-password-form";
+
+export const dynamic = "force-dynamic";
 
 export default async function ChangePasswordPage() {
   const t = await getTranslations("changePassword");

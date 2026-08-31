@@ -1,8 +1,9 @@
-export const dynamic = "force-dynamic";
 import { ShieldX } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
+
+export const dynamic = "force-dynamic";
 
 // 403 — ruxsat yo'q sahifasi (requireRole shu yerga yo'naltiradi)
 export default async function ForbiddenPage() {
