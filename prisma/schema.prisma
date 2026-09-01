@@ -1,0 +1,555 @@
+// Prisma sxemasi — Xususiy Maktab CRM
+// TZ'dagi ma'lumotlar modelining to'liq kod ko'rinishi.
+// Hujjat: https://www.prisma.io/docs
+//
+// DIQQAT: Prisma sxemasida FAQAT `//` va `///` izohlari ishlaydi.
+// `/* ... */` yoki `/** ... */` yozilsa `Error code: P1012` chiqadi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Enumlar (turlar)
+// ------------------------------------------------------------------
+
+enum Role {
+  ADMIN // Administrator / direksiya
+  TEACHER // O'qituvchi
+  ACCOUNTANT // Buxgalter
+  PARENT // Ota-ona / O'quvchi
+}
+
+enum Locale {
+  uz
+  ru
+  en
+}
+
+enum StudentStatus {
+  ACTIVE // Faol
+  GRADUATED // Bitirgan
+  LEFT // Chiqib ketgan
+}
+
+enum AttendanceStatus {
+  PRESENT // Keldi
+  ABSENT // Kelmadi
+  LATE // Kechikdi
+  EXCUSED // Sababli
+}
+
+enum GradeType {
+  DAILY // Kundalik
+  CONTROL // Nazorat
+  EXAM // Imtihon
+}
+
+enum InvoiceStatus {
+  PENDING // Kutilmoqda
+  PARTIAL // Qisman to'langan
+  PAID // To'langan
+  OVERDUE // Muddati o'tgan
+}
+
+enum PaymentMethod {
+  CASH // Naqd
+  CARD // Karta
+  TRANSFER // O'tkazma
+}
+
+enum DiscountType {
+  PERCENT // foiz (0–100)
+  AMOUNT // so'mda summa
+}
+
+enum MessageChannel {
+  SMS
+}
+
+enum MessageStatus {
+  QUEUED // Navbatda
+  SENT // Yuborildi
+  FAILED // Xato
+}
+
+enum TestSource {
+  MANUAL // Qo'lda kiritilgan
+  FILE // Fayldan import (txt/docx)
+  AI // AI generatsiya qilgan
+}
+
+// ------------------------------------------------------------------
+// O'quv yili va choraklar
+// ------------------------------------------------------------------
+
+model AcademicYear {
+  id        String    @id @default(cuid())
+  name      String    @unique // masalan: "2025-2026"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean   @default(false)
+  quarters  Quarter[]
+  classes   Class[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+}
+
+model Quarter {
+  id             String       @id @default(cuid())
+  name           Int // 1, 2, 3, 4
+  startDate      DateTime
+  endDate        DateTime
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYearId String
+  grades         Grade[]
+
+  @@unique([academicYearId, name])
+}
+
+// ------------------------------------------------------------------
+// Foydalanuvchilar va rollar
+// ------------------------------------------------------------------
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String?  @unique
+  phone              String?  @unique
+  passwordHash       String
+  fullName           String
+  role               Role
+  locale             Locale   @default(uz)
+  isActive           Boolean  @default(true)
+  // Yangi hisob: birinchi kirishda parol almashtiriladi. Demo seed = false.
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  teacher  Teacher?
+  guardian Guardian?
+
+  auditLogs        AuditLog[]
+  issuedPenalties  Penalty[]          @relation("PenaltyIssuedBy")
+  createdCriteria  PenaltyCriterion[] @relation("CriterionCreatedBy")
+  receivedPayments Payment[]          @relation("PaymentReceivedBy")
+  createdTests     Test[]             @relation("TestCreatedBy")
+}
+
+model Teacher {
+  id              String    @id @default(cuid())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String    @unique
+  subjects        Subject[] @relation("TeacherSubjects")
+  lessons         Lesson[]
+  homeroomClasses Class[]   @relation("HomeroomTeacher")
+  grades          Grade[]
+  createdAt       DateTime  @default(now())
+}
+
+model Guardian {
+  id        String    @id @default(cuid())
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?   @unique
+  fullName  String
+  phone     String
+  relation  String?
+  students  Student[]
+  createdAt DateTime  @default(now())
+}
+
+// ------------------------------------------------------------------
+// O'quvchilar, sinflar, fanlar
+// ------------------------------------------------------------------
+
+model Student {
+  id          String        @id @default(cuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  gender      String?
+  photoUrl    String?
+  address     String?
+  enrollDate  DateTime      @default(now())
+  status      StudentStatus @default(ACTIVE)
+
+  class      Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  classId    String?
+  guardian   Guardian? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+  guardianId String?
+
+  attendances Attendance[]
+  grades      Grade[]
+  penalties   Penalty[]
+  contract    Contract?
+  messages    Message[]
+  testResults TestResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([classId, status])
+}
+
+model Class {
+  id                String        @id @default(cuid())
+  name              String
+  grade             Int
+  academicYear      AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  academicYearId    String?
+  homeroomTeacher   Teacher?      @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  homeroomTeacherId String?
+
+  students Student[]
+  lessons  Lesson[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // Bir o'quv yilida bir xil nomli ikkita sinf bo'lmasligi kerak (9-A ikki marta).
+  @@unique([name, academicYearId])
+  @@index([academicYearId, grade])
+}
+
+model Subject {
+  id        String    @id @default(cuid())
+  nameUz    String    @unique
+  nameRu    String?
+  nameEn    String?
+  teachers  Teacher[] @relation("TeacherSubjects")
+  lessons   Lesson[]
+  grades    Grade[]
+  tests     Test[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+}
+
+// Qo'ng'iroq jadvali: 1-dars 08:30–09:15, 2-dars 09:25–10:10 ...
+// Dars jadvali shu "uyalar" ustiga quriladi — ziddiyat tekshiruvi soddalashadi.
+model LessonPeriod {
+  id        String   @id @default(cuid())
+  index     Int      @unique // 1, 2, 3 ... (nechanchi dars)
+  label     String? // ixtiyoriy nom: "Katta tanaffusdan keyin"
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  lessons   Lesson[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Lesson {
+  id        String        @id @default(cuid())
+  class     Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  subject   Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+  teacher   Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  period    LessonPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  periodId  String?
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  room      String?
+
+  attendances Attendance[]
+  // Jurnalda har bir dars alohida ustun bo'ladi, shuning uchun baho ham
+  // darsga bog'lanadi (bir kunda bir fandan ikki dars bo'lishi mumkin).
+  grades      Grade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // Bitta sinf bir vaqtda bitta darsda bo'ladi; bitta o'qituvchi ham.
+  // Ilova qatlamida ham tekshiriladi (xona bilan birga), bu — bazadagi oxirgi qalqon.
+  @@unique([classId, dayOfWeek, periodId])
+  @@unique([teacherId, dayOfWeek, periodId])
+  @@index([classId, dayOfWeek])
+  @@index([teacherId, dayOfWeek])
+  @@index([periodId, dayOfWeek])
+}
+
+// ------------------------------------------------------------------
+// Davomat va baholar
+// ------------------------------------------------------------------
+
+model Attendance {
+  id        String           @id @default(cuid())
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  date      DateTime         @db.Date
+  status    AttendanceStatus
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, lessonId, date])
+  @@index([studentId, date])
+  @@index([lessonId, date])
+}
+
+model Grade {
+  id        String    @id @default(cuid())
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+  quarter   Quarter   @relation(fields: [quarterId], references: [id], onDelete: Cascade)
+  quarterId String
+  value     Int
+  type      GradeType @default(DAILY)
+
+  // FAQAT SANA — vaqt YO'Q (`@db.Date`), Attendance modeli bilan bir xil.
+  //
+  // Nega muhim: jurnal ham, hisobot ham sanani ANIQ TENGLIK bilan qidiradi
+  // (`date: toDate("2026-08-26")` yoki `date: { in: [...] }`). Agar ustunda
+  // vaqt saqlansa, 14:05 da yozilgan baho "00:00" bilan solishtirilganda
+  // topilmaydi — baho bazada bor, lekin hech qaysi ekranda ko'rinmaydi.
+  //
+  // `@default(now())` ATAYLAB olib tashlandi: sanani har doim ilova yuboradi
+  // (o'qituvchi tanlagan kun). Baza "bugun" deb o'zidan to'ldirsa, jadval
+  // tahriri paytida noto'g'ri kunga baho tushib qolishi mumkin edi.
+  date      DateTime  @db.Date
+
+  teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  teacherId String?
+
+  // QAYSI DARSGA qo'yilgan baho (jurnal ustuni).
+  //
+  // Ixtiyoriy (`String?`) — ikki sabab bilan:
+  //   1. Bu maydon qo'shilishidan oldin kiritilgan baholarda u bo'sh qoladi,
+  //      lekin ular yo'qolmasligi kerak.
+  //   2. Dars jadvalidan dars o'chirilsa baho saqlanib qolishi kerak
+  //      (`onDelete: SetNull`) — o'quvchining bahosi jadval tahriri sababli
+  //      yo'qolmasligi lozim.
+  //
+  // Shu maydon tufayli bir kunda bir fandan ikki dars bo'lsa, jurnalda ikki
+  // alohida ustun ("Matematika", "Matematika 2") va ikki alohida baho bo'ladi.
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  lessonId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // TAKRORLANISHGA QARSHI CHEKLOV.
+  //
+  // Bir o'quvchiga, bitta darsda, bitta kunda, bitta tur bo'yicha faqat
+  // BITTA baho bo'ladi. Ilgari bu qoida faqat kodda edi: jurnal saqlashdan
+  // oldin mavjud bahoni o'qib, bo'lsa `update`, bo'lmasa `create` qilardi.
+  // Ammo ikki so'rov bir vaqtda kelsa (tugma ikki marta bosildi, admin va
+  // o'qituvchi bir paytda saqladi) ikkisi ham "mavjud emas" deb ko'rib,
+  // ikkita baho yozib ketardi. Endi ikkinchisi baza darajasida to'xtaydi.
+  //
+  // `type` ham kalitga kiradi: bir kunda kundalik ham, nazorat ham baho
+  // bo'lishi normal holat — ular bir-birini almashtirmaydi.
+  //
+  // ESLATMA: `lessonId` NULL bo'lgan ESKI baholar bu cheklovga tushmaydi —
+  // PostgreSQL da NULL o'zi bilan teng emas, shuning uchun unique ishlamaydi.
+  // Ular uchun `lessonId` ni to'ldirish (backfill) tavsiya etiladi.
+  @@unique([studentId, lessonId, date, type])
+  @@index([studentId, quarterId])
+  @@index([subjectId, quarterId])
+  // Jurnal so'rovi: "shu darsning shu kundagi baholari".
+  @@index([lessonId, date])
+  // Hisobot so'rovi: "shu o'quvchining shu kundagi barcha baholari".
+  @@index([studentId, date])
+}
+
+// ------------------------------------------------------------------
+// Jarima ball tizimi (mezonlar asosida)
+// ------------------------------------------------------------------
+
+model PenaltyCriterion {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  points      Int
+  category    String?
+  isActive    Boolean   @default(true)
+  createdBy   User?     @relation("CriterionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  penalties   Penalty[]
+  createdAt   DateTime  @default(now())
+}
+
+model Penalty {
+  id          String            @id @default(cuid())
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  criterion   PenaltyCriterion? @relation(fields: [criterionId], references: [id], onDelete: SetNull)
+  criterionId String?
+  points      Int
+  note        String?
+  issuedBy    User?             @relation("PenaltyIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedById  String?
+  date        DateTime          @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId, date])
+}
+
+// ------------------------------------------------------------------
+// Reyting sozlamalari (yakuniy ball formulasi)
+// ------------------------------------------------------------------
+
+// BITTA QATORLI SOZLAMA (singleton).
+//
+// Reyting formulasi koeffitsientlari shu yerda turadi, URL da emas. Sabab:
+// reyting mukofot va jazoga asos bo'ladi, shuning uchun hamma bir xil
+// raqamni ko'rishi kerak. URL da bo'lsa har kim o'z linkida boshqa
+// koeffitsient yozib, boshqa reyting ko'rsatishi mumkin bo'lardi.
+//
+// `id` doim "global" — jadvalda faqat bitta qator bo'ladi. Shu tufayli
+// `upsert` bilan yangilanadi va "qaysi sozlama to'g'ri?" savoli tug'ilmaydi.
+//
+// Koeffitsientlar BUTUN SON sifatida saqlanadi (foiz yoki yuzdan bir),
+// chunki suzuvchi nuqtali son (Float) yig'indida kichik xatolar beradi va
+// bir xil ballga ega ikki o'quvchi noto'g'ri tartibda chiqib qolishi mumkin:
+//   - gradeWeight = 80   -> baho ulushi 80%
+//   - testWeight = 20    -> test ulushi 20%
+//   - penaltyFactor = 50 -> har bir jarima balli 0.50 ball yechadi
+//
+// XAVFSIZLIK: bu qatorni FAQAT ADMIN o'zgartiradi (Server Action ichida
+// tekshiriladi) va har o'zgarish `AuditLog` ga tushadi — kim, qachon,
+// nimadan nimaga o'zgartirgani ko'rinib turadi.
+model RankingSetting {
+  id String @id @default("global")
+
+  gradeWeight   Int @default(80)
+  testWeight    Int @default(20)
+  penaltyFactor Int @default(50)
+
+  // Oxirgi kim o'zgartirgani. Ataylab `User` ga relation qilinmadi:
+  // sozlama qatori foydalanuvchi o'chirilsa ham buzilmasligi kerak.
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+// ------------------------------------------------------------------
+// To'lovlar / kontraktlar (buxgalteriya)
+// ------------------------------------------------------------------
+
+model Contract {
+  id            String       @id @default(cuid())
+  student       Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String       @unique
+  monthlyAmount Int
+  discountType  DiscountType @default(PERCENT)
+  discountValue Int          @default(0)
+  startDate     DateTime
+  endDate       DateTime?
+  invoices      Invoice[]
+  createdAt     DateTime     @default(now())
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+  period     String
+  amount     Int
+  dueDate    DateTime
+  status     InvoiceStatus @default(PENDING)
+  payments   Payment[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([contractId, period])
+  @@index([status, dueDate])
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  amount       Int
+  method       PaymentMethod @default(CASH)
+  date         DateTime      @default(now())
+  receivedBy   User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  receivedById String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([invoiceId, date])
+}
+
+// ------------------------------------------------------------------
+// Xabarnomalar (SMS)
+// ------------------------------------------------------------------
+
+model Message {
+  id        String         @id @default(cuid())
+  student   Student?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId String?
+  channel   MessageChannel @default(SMS)
+  toPhone   String
+  body      String
+  status    MessageStatus  @default(QUEUED)
+  sentAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([status, createdAt])
+}
+
+// ------------------------------------------------------------------
+// Testlar (qo'lda / fayl / AI) va natijalar
+// ------------------------------------------------------------------
+
+model Test {
+  id          String       @id @default(cuid())
+  title       String
+  subject     Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  subjectId   String?
+  topic       String?
+  difficulty  String?
+  source      TestSource   @default(MANUAL)
+  questions   Json
+  createdBy   User?        @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  results     TestResult[]
+  createdAt   DateTime     @default(now())
+}
+
+model TestResult {
+  id          String   @id @default(cuid())
+  test        Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  testId      String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  score       Int
+  percent     Float
+  durationSec Int?
+  takenAt     DateTime @default(now())
+
+  @@index([testId, score])
+  @@index([studentId, takenAt])
+}
+
+// ------------------------------------------------------------------
+// Audit jurnali
+// ------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}

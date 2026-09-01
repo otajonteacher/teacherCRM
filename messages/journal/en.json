@@ -1,0 +1,46 @@
+{
+  "nav": {
+    "journal": "Journal"
+  },
+  "journal": {
+    "title": "Journal",
+    "subtitle": "Daily journal: attendance and every lesson of the day. Only your own lesson column is editable.",
+    "chooseTitle": "Select class, day and grade type",
+    "chooseHint": "Columns come from the timetable. If a subject occurs twice a day, the second one is named \"Mathematics 2\".",
+    "chooseClass": "Select a class",
+    "apply": "Show",
+    "needClass": "Select a class to open the journal.",
+    "noClasses": "No lessons assigned to you. Check the timetable. Being a homeroom teacher is not enough — only the subject teacher can grade.",
+    "noLessons": "No lessons for this class on this day. Pick another day.",
+    "noStudents": "No active students in this class.",
+    "lessonCount": "{count} lessons on this day",
+    "student": "Student",
+    "attendance": "Attendance",
+    "averageColumn": "Average",
+    "rankColumn": "Rank",
+    "topN": "Top places",
+    "typeLabel": "Grade type",
+    "type": {
+      "DAILY": "Daily",
+      "CONTROL": "Control",
+      "EXAM": "Exam"
+    },
+    "typeHint": "Each type is a separate sheet: a control grade never overwrites a daily grade.",
+    "gridHint": "Grade: 0–100. Attendance: K, SZ, SL, KCH. Click a cell to change a grade instantly.",
+    "lockedTooltip": "This is not your subject",
+    "autoPresentHint": "A student who receives a grade is marked present (K) automatically.",
+    "otherLessonMark": "Mark from another lesson: {mark}. Your own lesson has no mark yet.",
+    "readOnly": "You have no lesson with this class on this day — the journal is read-only.",
+    "legendTitle": "Legend",
+    "legend": {
+      "PRESENT": "present",
+      "ABSENT": "absent (unexcused)",
+      "EXCUSED": "absent (excused)",
+      "LATE": "late"
+    },
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "saved": "Journal saved."
+  }
+}

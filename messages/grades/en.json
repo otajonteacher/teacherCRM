@@ -1,0 +1,42 @@
+{
+  "grades": {
+    "title": "Grades",
+    "subtitle": "Performance report — view only.",
+    "readOnlyNotice": "Grades cannot be entered here. Only the subject teacher enters grades on the \"Journal\" page.",
+    "parentNotice": "These are your child's grades. See the \"Ranking\" page for the place in class. For questions about a grade, contact the subject teacher or the homeroom teacher.",
+    "chooseTitle": "Report options",
+    "chooseHint": "In day view the columns are the lessons of that day. In week view each subject gets one column per day.",
+    "chooseClass": "Select a class",
+    "classRequired": "A class must be selected.",
+    "dateLabel": "Date",
+    "modeLabel": "View",
+    "modeDay": "Daily",
+    "modeWeek": "Weekly",
+    "typeLabel": "Grade type",
+    "apply": "Show",
+    "topN": "Top places",
+    "topNHint": "For example 7 marks the top 7 places. Leave empty to rank the whole class.",
+    "dayHint": "All grades of the day and the place in class.",
+    "weekHint": "Monday to Saturday. Each subject has one column per day plus a subject average.",
+    "subjectAverage": "Average",
+    "editInJournal": "Edit in journal",
+    "needClass": "Select a class to see the report.",
+    "noClasses": "No classes available to you.",
+    "noLessons": "No lessons scheduled for this period.",
+    "noStudents": "No active students in this class.",
+    "student": "Student",
+    "averageColumn": "Average",
+    "rankColumn": "Place",
+    "type": {
+      "DAILY": "Daily",
+      "CONTROL": "Control",
+      "EXAM": "Exam"
+    },
+    "level": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "average": "Average",
+      "weak": "Weak"
+    }
+  }
+}

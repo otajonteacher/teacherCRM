@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /*
+   * IKKITA SKROLBAR MUAMMOSINING ILDIZI
+   * ===================================
+   * Ilgari `html` ning balandligi belgilanmagan, `body` da esa `min-h-screen`
+   * (ya'ni `100vh`) turgan edi. Ilova qobig'i o'z navbatida `100dvh` ishlatdi.
+   * `vh` va `dvh` bir xil qiymat EMAS — brauzer paneli, gorizontal skrolbar
+   * yoki masshtab (zoom) tufayli ular bir necha piksel farq qiladi. Natijada
+   * hujjat viewport'dan sal balandroq bo'lib, sahifaning O'ZI ham skrol
+   * bo'ladigan holga kelgan. Ekranda ikkita skrolbar paydo bo'lgani shundan:
+   * biri — hujjatning, ikkinchisi — kontent konteynerining.
+   *
+   * Yechim: `html` va `body` ni aniq `height: 100%` bilan qulflaymiz va
+   * hamma joyda foizga o'tamiz (`h-full`). Shunda `vh`/`dvh` aralashmasi
+   * umuman qolmaydi.
+   *
+   * MUHIM: bu yerda `overflow: hidden` QO'YILMAYDI. Sababi login,
+   * change-password va forbidden sahifalari `body` dan tashqariga chiqishi
+   * mumkin (kichik ekranda) — ularda oddiy sahifa skroli ishlashi kerak.
+   * Skrolni qulflash faqat ilova qobig'ining o'z vazifasi.
+   */
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Scroll ishlaydi, lekin scrollbar butunlay ko'rinmaydi */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE / eski Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none; /* Chrome / Safari / Edge */
+  }
+
+  /*
+   * Ingichka, bezovta qilmaydigan skrolbar.
+   *
+   * Nima uchun `no-scrollbar` emas: skrolbar butunlay yashirilganda
+   * foydalanuvchi ro'yxatning davomi borligini bilmaydi. Ingichka skrolbar
+   * joy egallamaydi, lekin "pastda yana bor" degan ishorani beradi.
+   */
+  .thin-scrollbar {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+    /* Shaffof ramka — "tayoqcha" ingichkaroq ko'rinadi */
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .thin-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+}

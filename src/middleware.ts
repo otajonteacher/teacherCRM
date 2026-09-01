@@ -1,0 +1,87 @@
+import NextAuth from "next-auth";
+import createIntlMiddleware from "next-intl/middleware";
+import { NextResponse } from "next/server";
+import { authConfig } from "./auth.config";
+import { locales, defaultLocale } from "./i18n/config";
+import { isPathAllowed } from "./lib/rbac";
+
+/**
+ * MUHIM: bu yerda `@/auth` EMAS, `./auth.config` ishlatiladi.
+ *
+ * Middleware Edge runtime'da ishlaydi — u yerda Prisma ishlamaydi.
+ * Ilgari middleware to'liq `@/auth` ni import qilgani uchun, undagi
+ * `jwt` callback bazaga murojaat qilib xatoga uchrardi va sessiya
+ * yaroqsiz deb hisoblanardi. Natijada foydalanuvchi hech qanday sababsiz
+ * login sahifasiga otib yuborilardi.
+ *
+ * Endi middleware faqat cookie'dagi tokenni o'qiydi (bazasiz), hisobning
+ * faol-nofaolligi esa sahifalar/action'lar tomonida (Node runtime)
+ * tekshiriladi — `src/auth.ts`.
+ */
+const { auth } = NextAuth(authConfig);
+
+const handleI18n = createIntlMiddleware({
+  locales,
+  defaultLocale,
+  localePrefix: "always",
+});
+
+function splitLocale(pathname: string): {
+  locale: string;
+  pathWithoutLocale: string;
+} {
+  const match = locales.find(
+    (loc) => pathname === `/${loc}` || pathname.startsWith(`/${loc}/`)
+  );
+  if (!match) {
+    return { locale: defaultLocale, pathWithoutLocale: pathname || "/" };
+  }
+  const rest = pathname.slice(match.length + 1);
+  return { locale: match, pathWithoutLocale: rest === "" ? "/" : rest };
+}
+
+/**
+ * Asosiy middleware (BIRINCHI qatlam himoya):
+ * 1. Sessiya yo'q bo'lsa → /login
+ * 2. mustChangePassword → /change-password
+ * 3. Rolga ruxsat yo'q bo'lsa → /forbidden (403)
+ * 4. next-intl til prefiksini qo'shadi
+ */
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  const { locale, pathWithoutLocale } = splitLocale(pathname);
+
+  const isLogin = pathWithoutLocale.startsWith("/login");
+  const isForbidden = pathWithoutLocale.startsWith("/forbidden");
+  const isChangePassword = pathWithoutLocale.startsWith("/change-password");
+  const isPublic = isLogin || isForbidden || pathWithoutLocale === "/";
+
+  if (isChangePassword) {
+    if (!req.auth?.user) {
+      return NextResponse.redirect(new URL(`/${locale}/login`, req.url));
+    }
+    return handleI18n(req);
+  }
+
+  if (!isPublic) {
+    if (!req.auth?.user) {
+      return NextResponse.redirect(new URL(`/${locale}/login`, req.url));
+    }
+
+    if (req.auth.user.mustChangePassword) {
+      return NextResponse.redirect(
+        new URL(`/${locale}/change-password`, req.url)
+      );
+    }
+
+    if (!isPathAllowed(req.auth.user.role, pathWithoutLocale)) {
+      return NextResponse.redirect(new URL(`/${locale}/forbidden`, req.url));
+    }
+  }
+
+  return handleI18n(req);
+});
+
+export const config = {
+  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+};
