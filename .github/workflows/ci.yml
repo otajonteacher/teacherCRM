@@ -32,6 +32,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
       AUTH_SECRET: ci-uchun-soxta-kalit-kamida-32-belgi-boladi
+      AUTH_URL: http://localhost:3000
 
     steps:
       - uses: actions/checkout@v4
