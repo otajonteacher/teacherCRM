@@ -26,6 +26,18 @@ function cleanEnv(value: string | undefined): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+/**
+ * `next build` ham `NODE_ENV=production` bilan ishlaydi, lekin build paytida
+ * ilova hech qanday so'rovga javob bermaydi — demak `AUTH_URL` ham kerak emas.
+ * Xuddi shu narsa CI uchun ham to'g'ri (u faqat tekshiruv o'tkazadi).
+ *
+ * Shu sababli `AUTH_URL` majburiyligi **ishlash vaqtida** (server ko'tarilganda)
+ * qo'llanadi — himoya kuchi kamaymaydi, lekin build/CI bejiz to'xtamaydi.
+ */
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+const isCi = cleanEnv(process.env.CI) === "true";
+const skipRuntimeOnlyChecks = isBuildPhase || isCi;
+
 const envSchema = z
   .object({
     NODE_ENV: z
@@ -45,10 +57,10 @@ const envSchema = z
     /**
      * Ilovaning tashqi manzili, masalan `https://crm.maktab.uz`.
      *
-     * XAVFSIZLIK: ishlab chiqarishda MAJBURIY. Auth.js callback va
-     * yo'naltirish manzillarini `Host`/`X-Forwarded-Host` sarlavhasidan
-     * olsa, hujumchi o'z domenini ko'rsatib sessiya havolasini o'g'irlashi
-     * mumkin (host header injection → fishing). `AUTH_URL` qat'iy
+     * XAVFSIZLIK: ishlab chiqarishda (server ko'tarilganda) MAJBURIY. Auth.js
+     * callback va yo'naltirish manzillarini `Host`/`X-Forwarded-Host`
+     * sarlavhasidan olsa, hujumchi o'z domenini ko'rsatib sessiya havolasini
+     * o'g'irlashi mumkin (host header injection → fishing). `AUTH_URL` qat'iy
      * berilganda ilova hech qachon boshqa domenga yo'naltirmaydi.
      */
     AUTH_URL: z
@@ -80,7 +92,8 @@ const envSchema = z
     QUERY_LOG_PARAMS: z.enum(["0", "1"]).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.NODE_ENV !== "production") return;
+    // Build va CI bosqichida ilova so'rovga javob bermaydi → tekshiruv kerak emas.
+    if (value.NODE_ENV !== "production" || skipRuntimeOnlyChecks) return;
 
     // 1) AUTH_URL ishlab chiqarishda majburiy.
     if (!value.AUTH_URL) {
