@@ -9,6 +9,12 @@ import { z } from "zod";
  *
  * Qoida: maxfiy kalitga `NEXT_PUBLIC_` qo'yilmaydi — u brauzerga tushadi.
  * AI/SMS kalitlari ixtiyoriy: yo'q bo'lsa modul "ulanmagan" holatda qoladi.
+ *
+ * QAT'IY QOIDA (loyiha egasining talabi): tekshiruvda ISTISNO bo'lmaydi.
+ * "Bu bosqichda hujum bo'lmaydi" degan mantiq bilan tekshiruv o'tkazib
+ * yuborilmaydi — chunki bir marta ochilgan teshik keyin esdan chiqadi.
+ * Ya'ni `NODE_ENV=production` bo'lsa, tekshiruv build, CI va ishlash
+ * vaqtida — hammasida bir xil ishlaydi.
  */
 
 /**
@@ -25,18 +31,6 @@ function cleanEnv(value: string | undefined): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
 }
-
-/**
- * `next build` ham `NODE_ENV=production` bilan ishlaydi, lekin build paytida
- * ilova hech qanday so'rovga javob bermaydi — demak `AUTH_URL` ham kerak emas.
- * Xuddi shu narsa CI uchun ham to'g'ri (u faqat tekshiruv o'tkazadi).
- *
- * Shu sababli `AUTH_URL` majburiyligi **ishlash vaqtida** (server ko'tarilganda)
- * qo'llanadi — himoya kuchi kamaymaydi, lekin build/CI bejiz to'xtamaydi.
- */
-const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
-const isCi = cleanEnv(process.env.CI) === "true";
-const skipRuntimeOnlyChecks = isBuildPhase || isCi;
 
 const envSchema = z
   .object({
@@ -57,11 +51,12 @@ const envSchema = z
     /**
      * Ilovaning tashqi manzili, masalan `https://crm.maktab.uz`.
      *
-     * XAVFSIZLIK: ishlab chiqarishda (server ko'tarilganda) MAJBURIY. Auth.js
-     * callback va yo'naltirish manzillarini `Host`/`X-Forwarded-Host`
-     * sarlavhasidan olsa, hujumchi o'z domenini ko'rsatib sessiya havolasini
-     * o'g'irlashi mumkin (host header injection → fishing). `AUTH_URL` qat'iy
-     * berilganda ilova hech qachon boshqa domenga yo'naltirmaydi.
+     * XAVFSIZLIK: `NODE_ENV=production` bo'lganda MAJBURIY — istisnosiz
+     * (build, CI, ishlash vaqti). Auth.js callback va yo'naltirish
+     * manzillarini `Host`/`X-Forwarded-Host` sarlavhasidan olsa, hujumchi
+     * o'z domenini ko'rsatib sessiya havolasini o'g'irlashi mumkin
+     * (host header injection → fishing). `AUTH_URL` qat'iy berilganda
+     * ilova hech qachon boshqa domenga yo'naltirmaydi.
      */
     AUTH_URL: z
       .string()
@@ -70,8 +65,8 @@ const envSchema = z
 
     /**
      * `true` — Auth.js `Host` sarlavhasiga ishonadi (self-hosted rejim).
-     * Kod ichida `trustHost: true` qo'yilgan; bu o'zgaruvchi faqat hujjat
-     * uchun qabul qilinadi.
+     * Kod ichida `trustHost: true` qo'yilgan; bu o'zgaruvchi hujjat va
+     * kelajakdagi sozlash uchun sxemada turadi.
      */
     AUTH_TRUST_HOST: z.enum(["true", "false"]).optional(),
 
@@ -92,28 +87,34 @@ const envSchema = z
     QUERY_LOG_PARAMS: z.enum(["0", "1"]).optional(),
   })
   .superRefine((value, ctx) => {
-    // Build va CI bosqichida ilova so'rovga javob bermaydi → tekshiruv kerak emas.
-    if (value.NODE_ENV !== "production" || skipRuntimeOnlyChecks) return;
+    // ISTISNO YO'Q: production bo'lsa — har qanday bosqichda tekshiriladi.
+    if (value.NODE_ENV !== "production") return;
 
-    // 1) AUTH_URL ishlab chiqarishda majburiy.
+    // 1) AUTH_URL majburiy.
     if (!value.AUTH_URL) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["AUTH_URL"],
         message:
-          "ishlab chiqarishda majburiy. Masalan: AUTH_URL=https://crm.maktab.uz " +
-          "(lokal sinov uchun http://localhost:3000). Sababi: Auth.js " +
-          "yo'naltirish manzilini Host sarlavhasidan olmasligi kerak.",
+          "majburiy (NODE_ENV=production). Masalan: " +
+          "AUTH_URL=https://crm.maktab.uz — lokal yoki CI uchun " +
+          "http://localhost:3000. Sababi: Auth.js yo'naltirish manzilini " +
+          "Host sarlavhasidan olmasligi kerak (fishing himoyasi).",
       });
       return;
     }
 
-    // 2) Ishlab chiqarishda HTTPS shart (localhost bundan mustasno) —
-    //    aks holda sessiya cookie'si ochiq kanalda uzatiladi.
-    let parsedUrl: URL | undefined;
+    // 2) HTTPS shart (localhost bundan mustasno — u tashqi tarmoqqa chiqmaydi):
+    //    aks holda sessiya cookie'si shifrlanmagan kanalda uzatiladi.
+    let parsedUrl: URL;
     try {
       parsedUrl = new URL(value.AUTH_URL);
     } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AUTH_URL"],
+        message: "o'qib bo'lmadi — to'liq manzil yozing (https://... ko'rinishida).",
+      });
       return;
     }
 
@@ -125,8 +126,20 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ["AUTH_URL"],
         message:
-          "ishlab chiqarishda https:// bo'lishi kerak — aks holda sessiya " +
-          "cookie'si shifrlanmagan kanalda uzatiladi.",
+          "https:// bo'lishi kerak — aks holda sessiya cookie'si " +
+          "shifrlanmagan kanalda uzatiladi (session hijacking).",
+      });
+    }
+
+    // 3) Manzil oxirida qiya chiziq bo'lsa, callback URL ikki marta "/" bilan
+    //    yasaladi va yo'naltirish buziladi — darhol aytamiz.
+    if (parsedUrl.pathname === "/" && value.AUTH_URL.endsWith("/")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AUTH_URL"],
+        message:
+          "oxiridagi '/' ni olib tashlang — masalan https://crm.maktab.uz " +
+          "(https://crm.maktab.uz/ emas).",
       });
     }
   });
