@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { redirectNever, requireRole } from "@/lib/auth-guard";
-import { assertCanAccessClass } from "@/lib/scope";
+import { assertCanAccessClass, classScope } from "@/lib/scope";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,15 +23,27 @@ export default async function ClassDetailPage({
   searchParams: { error?: string };
 }) {
   const user = await requireRole("ADMIN", "TEACHER");
-  // IDOR himoyasi: sinf doira ichida bo'lmasa — /forbidden.
+  // 1-QAVAT IDOR himoyasi: sinf doira ichida bo'lmasa — /forbidden.
   await assertCanAccessClass(user, params.id);
 
   const t = await getTranslations("classes");
   const tSchedule = await getTranslations("schedule");
   const canWrite = user.role === "ADMIN";
 
-  const klass = await db.class.findUnique({
-    where: { id: params.id },
+  /**
+   * 2-QAVAT IDOR HIMOYASI.
+   *
+   * Yuqoridagi qorovul yetarli ko'rinadi, lekin u ALOHIDA funksiya — kimdir
+   * uni tahrirlaganda yoki yangi shart qo'shganda xato qilsa, bu sahifa
+   * jimgina begona sinfni ko'rsatib qo'yardi. Shuning uchun so'rovning o'zi
+   * ham doiralangan: `findUnique({ where: { id } })` emas, `classScope(user)`
+   * bilan `findFirst`. Endi begona sinf ID si bilan kelingan so'rov bazadan
+   * hech narsa qaytarmaydi — qorovul ishlamay qolgan holatda ham.
+   *
+   * Shu naqsh `students/[id]` sahifasida ham qo'llangan: qorovul + doira.
+   */
+  const klass = await db.class.findFirst({
+    where: { AND: [classScope(user), { id: params.id }] },
     include: {
       academicYear: { select: { name: true } },
       homeroomTeacher: { select: { user: { select: { fullName: true } } } },

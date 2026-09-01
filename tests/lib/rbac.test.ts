@@ -16,11 +16,31 @@ import {
  * `rbac.ts` — "kim qaysi SAHIFAGA kiradi" savoliga javob beradi.
  * "Kim qaysi QATORLARNI ko'radi" savoli alohida fayl (`scope.ts`) va
  * alohida test faylida.
- *
- * Bu fayl hech narsani mock qilmaydi: `rbac.ts` da runtime import yo'q
- * (`Role` faqat tip sifatida import qilinadi va kompilyatsiyada yo'qoladi).
- * Ya'ni testlar bazaga ham, muhit o'zgaruvchilariga ham bog'liq emas.
  */
+
+/**
+ * `src/app/[locale]/(app)` da HAQIQATDA mavjud bo'lgan sahifalar.
+ *
+ * Bu ro'yxat ADMIN ruxsati fail-closed bo'lgandan keyin kerak bo'ldi:
+ * jadvalga yozilmagan sahifa endi hech kim uchun ochilmaydi, shuning uchun
+ * "mavjud sahifa jadvaldan tushib qolgan" holatini test qo'riqlaydi.
+ * Yangi sahifa yaratganda uni SHU ro'yxatga ham, `roleAllowedPaths` ga ham
+ * qo'shish kerak — aks holda test yiqiladi va esdan chiqmaydi.
+ */
+const EXISTING_APP_PAGES = [
+  "/academic-years",
+  "/attendance",
+  "/classes",
+  "/dashboard",
+  "/grades",
+  "/journal",
+  "/lesson-periods",
+  "/ranking",
+  "/schedule",
+  "/students",
+  "/subjects",
+  "/teachers",
+] as const;
 
 describe("ROLES", () => {
   it("TZ 2.1 dagi to'rt rolni o'z ichiga oladi", () => {
@@ -28,9 +48,6 @@ describe("ROLES", () => {
   });
 
   it("har bir rol uchun ruxsat jadvali mavjud", () => {
-    // Agar yangi rol qo'shilib, jadval to'ldirilmasa — shu test yiqiladi.
-    // Aks holda `roleAllowedPaths[role] ?? []` jimgina bo'sh ro'yxat
-    // qaytarardi va yangi rol hech qayerga kira olmasdi (sababi noma'lum).
     for (const role of ROLES) {
       expect(Array.isArray(roleAllowedPaths[role])).toBe(true);
       expect(roleAllowedPaths[role].length).toBeGreaterThan(0);
@@ -59,7 +76,6 @@ describe("hasRole", () => {
   });
 
   it("ruxsat ro'yxati bo'sh bo'lsa hech kim o'tmaydi", () => {
-    // Bo'sh ro'yxat "hammaga ruxsat" degani EMAS.
     expect(hasRole("ADMIN", [])).toBe(false);
   });
 });
@@ -72,8 +88,6 @@ describe("homePathForRole", () => {
   });
 
   it("har bir rolning ruxsat ro'yxatida boshlang'ich sahifa bor", () => {
-    // Muhim invariant: login'dan keyin yo'naltirilgan sahifa o'sha rol
-    // uchun yopiq bo'lsa, foydalanuvchi darhol 403 ga tushib qolardi.
     for (const role of ROLES) {
       expect(isPathAllowed(role, homePathForRole(role))).toBe(true);
     }
@@ -81,17 +95,45 @@ describe("homePathForRole", () => {
 });
 
 describe("isPathAllowed — ADMIN", () => {
-  it("har qanday yo'lga kiradi (eganing qat'iy talabi)", () => {
+  it("boshqaruv sahifalariga kiradi", () => {
     expect(isPathAllowed("ADMIN", "/students")).toBe(true);
     expect(isPathAllowed("ADMIN", "/payments")).toBe(true);
     expect(isPathAllowed("ADMIN", "/journal")).toBe(true);
+    expect(isPathAllowed("ADMIN", "/users")).toBe(true);
   });
 
-  it("jadvalda umuman yo'q yo'lga ham kiradi", () => {
-    // ADMIN uchun funksiya jadvalni tekshirmasdan true qaytaradi.
-    // Bu ataylab: kelajakda yangi sahifa qo'shilganda ADMIN darhol
-    // kirishi kerak, jadvalni yangilash esdan chiqsa ham.
-    expect(isPathAllowed("ADMIN", "/hali-yaratilmagan-sahifa")).toBe(true);
+  it("ichki sahifalarga ham kiradi (prefiks bo'yicha)", () => {
+    expect(isPathAllowed("ADMIN", "/students/abc123")).toBe(true);
+    expect(isPathAllowed("ADMIN", "/teachers/import")).toBe(true);
+    expect(isPathAllowed("ADMIN", "/classes/5-A/edit")).toBe(true);
+  });
+
+  /**
+   * FAIL-CLOSED — O'ZGARTIRILGAN QOIDA.
+   *
+   * Ilgari bu test teskari edi: ADMIN jadvalda umuman yo'q yo'lga ham
+   * kirardi ("kelajakda yangi sahifa qo'shilsa darhol ishlasin").
+   * Amalda bu himoyaning ochiq qolishi edi: yarim tayyor, qorovulsiz yoki
+   * ichki/test sahifa ham ADMIN uchun avtomatik ochilardi.
+   *
+   * Endi ruxsat faqat ATAYLAB beriladi.
+   */
+  it("jadvalda yo'q yo'lga KIRMAYDI (fail-closed)", () => {
+    expect(isPathAllowed("ADMIN", "/hali-yaratilmagan-sahifa")).toBe(false);
+    expect(isPathAllowed("ADMIN", "/debug")).toBe(false);
+    expect(isPathAllowed("ADMIN", "/internal/backup")).toBe(false);
+  });
+
+  /**
+   * QAMROV TESTI.
+   *
+   * Fail-closed qoidasining teskari xavfi: mavjud sahifa jadvaldan tushib
+   * qolsa, ADMIN o'z ishini bajara olmaydi. Shuni qo'riqlaydi.
+   */
+  it("mavjud barcha sahifalar ADMIN uchun ochiq", () => {
+    for (const path of EXISTING_APP_PAGES) {
+      expect(isPathAllowed("ADMIN", path), path).toBe(true);
+    }
   });
 });
 
@@ -117,10 +159,12 @@ describe("isPathAllowed — TEACHER", () => {
   });
 
   it("jarima MEZONLARI — faqat ADMIN uchun", () => {
-    // O'qituvchi jarima QO'YADI (/penalties), lekin mezonlarni
-    // O'ZGARTIRA olmaydi (/penalty-criteria).
     expect(isPathAllowed("TEACHER", "/penalties")).toBe(true);
     expect(isPathAllowed("TEACHER", "/penalty-criteria")).toBe(false);
+  });
+
+  it("jadvalda yo'q yo'lga kirmaydi", () => {
+    expect(isPathAllowed("TEACHER", "/hali-yaratilmagan-sahifa")).toBe(false);
   });
 });
 
@@ -135,12 +179,7 @@ describe("isPathAllowed — PARENT", () => {
   /**
    * ENG MUHIM TEST.
    *
-   * Jurnal — baho va davomat KIRITISH joyi. Ota-ona faqat natijani
-   * ko'radi, kiritmaydi. Bu `rbac.ts` izohida ataylab yozilgan qoida.
-   *
-   * Agar kelajakda kimdir "ota-ona ham ko'rsin" degan iltimos bilan
-   * /journal ni PARENT ro'yxatiga qo'shsa — shu test yiqiladi va o'zgarish
-   * sababini tushuntirishga to'g'ri keladi.
+   * Jurnal — baho va davomat KIRITISH joyi. Ota-ona faqat natijani ko'radi.
    */
   it("jurnalga kira OLMAYDI (baho kiritish joyi)", () => {
     expect(isPathAllowed("PARENT", "/journal")).toBe(false);
@@ -154,8 +193,6 @@ describe("isPathAllowed — PARENT", () => {
   });
 
   it("rag'bat MEZONLARI yopiq, rag'batlar ochiq", () => {
-    // "/rewards" va "/reward-criteria" nomi o'xshash, lekin ikkinchisi
-    // sozlash sahifasi — faqat ADMIN uchun.
     expect(isPathAllowed("PARENT", "/rewards")).toBe(true);
     expect(isPathAllowed("PARENT", "/reward-criteria")).toBe(false);
   });
@@ -182,7 +219,6 @@ describe("isPathAllowed — ACCOUNTANT", () => {
 
 describe("isPathAllowed — chegara holatlari", () => {
   it("rol undefined bo'lsa false (fail-closed)", () => {
-    // Sessiya buzilgan yoki rol o'qilmagan holatda ruxsat KENGAYMAYDI.
     expect(isPathAllowed(undefined, "/dashboard")).toBe(false);
     expect(isPathAllowed(undefined, "/students")).toBe(false);
   });
@@ -193,19 +229,17 @@ describe("isPathAllowed — chegara holatlari", () => {
   });
 
   /**
-   * PREFIKS CHEGARASI — ikkinchi eng muhim test.
+   * PREFIKS CHEGARASI.
    *
    * Funksiya ichida: `path === p || path.startsWith(p + "/")`.
-   * Qo'shilgan "/" juda muhim. Agar kimdir uni olib tashlab
-   * `path.startsWith(p)` qilsa, quyidagi yo'llar ochilib qolardi:
-   *   /studentsX-maxfiy
-   *   /paymentsAdmin
-   * Ya'ni bitta belgi o'chirilishi ruxsat teshigiga aylanadi.
+   * Qo'shilgan "/" juda muhim: `path.startsWith(p)` bo'lsa
+   * /studentsX-maxfiy, /paymentsAdmin kabi yo'llar ochilib qolardi.
    */
   it("o'xshash boshlanishli yo'l ruxsat olmaydi", () => {
     expect(isPathAllowed("ACCOUNTANT", "/studentsX")).toBe(false);
     expect(isPathAllowed("ACCOUNTANT", "/students-maxfiy")).toBe(false);
     expect(isPathAllowed("TEACHER", "/journalX")).toBe(false);
+    expect(isPathAllowed("ADMIN", "/studentsX")).toBe(false);
   });
 
   it("oxirida slash bo'lsa ruxsat saqlanadi", () => {
@@ -216,14 +250,12 @@ describe("isPathAllowed — chegara holatlari", () => {
    * LOCALE PREFIKSI.
    *
    * Funksiya locale'siz yo'l kutadi ("/journal", "/uz/journal" emas).
-   * Bu test xatoni emas, SHARTNOMANI hujjatlashtiradi: chaqiruvchi tomon
-   * (middleware) prefiksni olib tashlashi SHART. Agar kimdir bu funksiyaga
-   * to'g'ridan-to'g'ri locale bilan yo'l bersa, hamma narsa 403 bo'ladi —
-   * va sabab shu yerda yozilgan.
+   * Chaqiruvchi tomon (middleware) prefiksni olib tashlashi SHART.
    */
   it("locale prefiksi bilan yo'l ruxsat olmaydi", () => {
     expect(isPathAllowed("TEACHER", "/uz/journal")).toBe(false);
     expect(isPathAllowed("PARENT", "/ru/grades")).toBe(false);
+    expect(isPathAllowed("ADMIN", "/uz/students")).toBe(false);
   });
 
   it("bo'sh yo'l ruxsat olmaydi", () => {
