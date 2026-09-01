@@ -96,13 +96,27 @@ export const roleAllowedPaths: Record<Role, string[]> = {
  * Middleware va server qorovullari SHU funksiyadan foydalanadi — tekshiruv
  * mantig'i bir joyda turadi, ikki nusxada emas.
  *
+ * FAIL-CLOSED (o'zgartirilgan qoida)
+ * ----------------------------------
+ * Ilgari ADMIN uchun funksiya jadvalni umuman tekshirmasdan `true`
+ * qaytarardi. Qulay edi, lekin bu "fail-open" himoya: kodga yangi sahifa
+ * qo'shilishi bilan u ADMIN uchun AVTOMATIK ochiq bo'lardi — hatto sahifa
+ * yarim tayyor, qorovulsiz yoki test uchun yozilgan bo'lsa ham. Ya'ni
+ * ruxsat qarori kod muallifining esidan chiqishiga bog'liq bo'lib qolardi.
+ *
+ * Endi ADMIN ham shu jadvaldan o'tadi. Yangi sahifa qo'shilganda uni bu
+ * ro'yxatga QO'LDA yozish kerak — ya'ni "bu sahifa kimga ochiq" degan savol
+ * har safar ataylab hal qilinadi. Jadvalga yozilmagan yo'l hech kim uchun
+ * ochilmaydi.
+ *
+ * ADMIN huquqi TORAYMADI: mavjud barcha sahifalar yuqoridagi ro'yxatda bor
+ * va buni `tests/lib/rbac.test.ts` dagi qamrov testi qo'riqlaydi.
+ *
  * @param role - foydalanuvchi roli
  * @param path - locale prefiksisiz yo'l, masalan "/students/42"
  */
 export function isPathAllowed(role: Role | undefined, path: string): boolean {
   if (!role) return false;
-
-  if (role === "ADMIN") return true;
 
   const allowed = roleAllowedPaths[role] ?? [];
   return allowed.some((p) => path === p || path.startsWith(p + "/"));

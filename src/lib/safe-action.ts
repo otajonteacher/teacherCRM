@@ -2,6 +2,8 @@ import { Prisma, type Role } from "@prisma/client";
 import { z } from "zod";
 import { requireAuth, requireRole, type SessionUser } from "./auth-guard";
 import { logAudit, type AuditAction } from "./audit";
+import { consume } from "./rate-limit-core";
+import { getRequestIp } from "./rate-limit";
 
 /**
  * SERVER ACTION QATLAMI (Punkt 3)
@@ -11,11 +13,12 @@ import { logAudit, type AuditAction } from "./audit";
  * unga istalgan ma'lumot yuborilishi mumkin. Formadagi `<select>` da 3 ta
  * variant borligi hech narsani kafolatlamaydi.
  *
- * Har bir action to'rtta qatlamdan o'tishi SHART:
+ * Har bir action BESHTA qatlamdan o'tishi SHART:
  *   1. Rol tekshiruvi     — requireAuth / requireRole
- *   2. Kirish validatsiyasi — zod (istisno yo'q)
- *   3. Xato xavfsizligi   — texnik detal foydalanuvchiga chiqmaydi
- *   4. Audit jurnali      — CREATE / UPDATE / DELETE avtomatik
+ *   2. So'rov cheklovi    — foydalanuvchi + IP bo'yicha (pastdagi izoh)
+ *   3. Kirish validatsiyasi — zod (istisno yo'q)
+ *   4. Xato xavfsizligi   — texnik detal foydalanuvchiga chiqmaydi
+ *   5. Audit jurnali      — CREATE / UPDATE / DELETE avtomatik
  *
  * Auth tekshiruvi validatsiyadan OLDIN: kirmagan odamga sxema tafsiloti sizib chiqmasin.
  */
@@ -23,6 +26,37 @@ import { logAudit, type AuditAction } from "./audit";
 export type ActionOk<T> = { ok: true; data: T };
 export type ActionErr = { ok: false; error: string };
 export type ActionResult<T = void> = ActionOk<T> | ActionErr;
+
+/**
+ * SERVER ACTION SO'ROV CHEKLOVI
+ * ============================
+ *
+ * Middleware sahifa va `/api` so'rovlarini cheklaydi, lekin Server Action
+ * chaqiruvi oddiy POST bo'lib SHU SAHIFANING o'z manzili ustidan ketadi.
+ * Ya'ni action'lar sahifa chegarasidan foydalanadi — u esa RSC prefetch
+ * uchun ataylab keng (300/min). Natijada skript bilan minglab yozish
+ * so'rovini yuborish yo'li ochiq qolgan edi:
+ *   - parol almashtirishni ketma-ket sinash,
+ *   - baho/davomatni tsiklda qayta yozib bazani ko'mib tashlash,
+ *   - Excel importni takrorlab serverni band qilish.
+ *
+ * Kalit: foydalanuvchi + IP. Faqat IP bo'yicha cheklash bitta maktab
+ * tarmog'idagi hamma o'qituvchini birga bloklab qo'yardi (NAT orqasida
+ * IP bir xil). Faqat foydalanuvchi bo'yicha cheklash esa bir nechta
+ * hisobni parallel ishlatib chetlab o'tishga imkon berardi.
+ *
+ * Chegara yozish tezligiga qarab tanlandi: eng og'ir sahifa — jurnal, unda
+ * o'qituvchi bir sinfni bir marta saqlaydi. Daqiqada 40 ta yozish amali
+ * odam uchun yetarlidan ko'p, skript uchun esa juda kam.
+ *
+ * ESLATMA (bitta jarayon chegarasi): hisoblagich xotirada turadi. Bir
+ * nechta instansiyada ishlaganda umumiy hisob kerak (Redis) — buni
+ * `docs/07-xavfsizlik.md` da ma'lum cheklov sifatida yozib qo'yamiz.
+ */
+const ACTION_RULE = { limit: 40, windowMs: 60_000 };
+
+const RATE_LIMIT_MESSAGE =
+  "So'rovlar juda ko'p. Bir daqiqadan keyin urinib ko'ring.";
 
 /**
  * Next.js `redirect()` / `notFound()` ichida tashlanadigan boshqaruv xatosi.
@@ -99,10 +133,15 @@ type SafeActionOptions<TSchema extends z.ZodTypeAny, TResult> = {
   /** NoInfer: TResult faqat handler qaytishidan olinadi, audit callbackdan emas. */
   audit?: AuditConfig<z.infer<TSchema>, NoInfer<TResult>>;
   handler: (input: z.infer<TSchema>, user: SessionUser) => Promise<TResult>;
+  /**
+   * So'rov cheklovi qoidasi. Sukut bo'yicha ACTION_RULE.
+   * Cheklovni BUTUNLAY o'chirish imkoni ataylab berilmagan.
+   */
+  rateLimit?: { limit: number; windowMs: number };
 };
 
 /**
- * Server Action yaratadi: rol → zod → handler → audit.
+ * Server Action yaratadi: rol → cheklov → zod → handler → audit.
  */
 export function createAction<TSchema extends z.ZodTypeAny, TResult>(
   options: SafeActionOptions<TSchema, TResult>
@@ -116,6 +155,16 @@ export function createAction<TSchema extends z.ZodTypeAny, TResult>(
     } catch (error) {
       if (isNextControlFlowError(error)) throw error;
       return { ok: false, error: "Kirish talab qilinadi." };
+    }
+
+    // 2-qatlam: so'rov cheklovi. Rol tekshiruvidan KEYIN — kalitda
+    // foydalanuvchi ID si bo'lishi kerak; kirmagan so'rov esa yuqorida
+    // allaqachon to'xtatilgan.
+    const ip = await getRequestIp();
+    if (
+      !consume(`action:${user.id}:${ip}`, options.rateLimit ?? ACTION_RULE)
+    ) {
+      return { ok: false, error: RATE_LIMIT_MESSAGE };
     }
 
     const parsed = options.schema.safeParse(raw);
