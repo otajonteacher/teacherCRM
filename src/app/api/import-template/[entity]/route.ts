@@ -1,5 +1,5 @@
-import { requireAdmin } from "@/lib/auth-guard";
 import { buildExcel } from "@/lib/excel";
+import { createRouteHandler } from "@/lib/route-guard";
 import {
   STUDENT_TEMPLATE_HEADERS,
   STUDENT_TEMPLATE_SAMPLE,
@@ -18,9 +18,8 @@ import {
  * GET /api/import-template/teachers
  * GET /api/import-template/classes
  *
- * Middleware `/api/*` ni tekshirmaydi — shu sababli ruxsat SHU YERDA
- * tekshiriladi: faqat ADMIN. Shablon fayl xotirada yasaladi, diskda
- * saqlanmaydi va keshlanmaydi.
+ * Ruxsat `createRouteHandler` orqali majburlanadi: faqat ADMIN.
+ * Shablon fayl xotirada yasaladi, diskda saqlanmaydi va keshlanmaydi.
  */
 export const dynamic = "force-dynamic";
 
@@ -51,25 +50,26 @@ function isTemplateKey(value: string): value is TemplateKey {
   return value === "students" || value === "teachers" || value === "classes";
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { entity: string } }
-) {
-  await requireAdmin();
+export const GET = createRouteHandler<{ entity: string }>({
+  roles: ["ADMIN"],
+  handler: async ({ params }) => {
+    if (!isTemplateKey(params.entity)) {
+      return new Response("Not found", { status: 404 });
+    }
 
-  if (!isTemplateKey(params.entity)) {
-    return new Response("Not found", { status: 404 });
-  }
+    const template = TEMPLATES[params.entity];
+    const buffer = buildExcel(
+      [[...template.headers], [...template.sample]],
+      template.sheetName
+    );
 
-  const template = TEMPLATES[params.entity];
-  const buffer = buildExcel([[...template.headers], [...template.sample]], template.sheetName);
-
-  return new Response(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${template.fileName}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
+    return new Response(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${template.fileName}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  },
+});
