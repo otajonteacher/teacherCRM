@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
 import { locales, defaultLocale } from "./i18n/config";
 import { isPathAllowed } from "./lib/rbac";
+import { consume, ipFromHeaders } from "./lib/rate-limit-core";
 
 /**
  * MUHIM: bu yerda `@/auth` EMAS, `./auth.config` ishlatiladi.
@@ -26,6 +27,29 @@ const handleI18n = createIntlMiddleware({
   localePrefix: "always",
 });
 
+/**
+ * SO'ROV CHEKLOVI (DDoS / scraping himoyasi)
+ *
+ * Ilgari cheklov faqat login'da edi — qolgan hamma sahifa cheksiz so'rov
+ * qabul qilardi. Skript bilan butun ro'yxatni sekin-asta ko'chirib olish
+ * yoki serverni so'rovga ko'mib tashlash mumkin edi.
+ *
+ * Sahifa chegarasi kengroq: bitta sahifa ochilganda RSC prefetch bir necha
+ * o'nlab so'rov yuboradi, oddiy foydalanuvchini bloklab qo'ymaslik kerak.
+ */
+const PAGE_RULE = { limit: 300, windowMs: 60_000 };
+const API_RULE = { limit: 60, windowMs: 60_000 };
+
+function tooManyRequests(): NextResponse {
+  return new NextResponse(
+    "So'rovlar juda ko'p. Bir daqiqadan keyin urinib ko'ring.",
+    {
+      status: 429,
+      headers: { "Retry-After": "60", "Cache-Control": "no-store" },
+    }
+  );
+}
+
 function splitLocale(pathname: string): {
   locale: string;
   pathWithoutLocale: string;
@@ -42,13 +66,29 @@ function splitLocale(pathname: string): {
 
 /**
  * Asosiy middleware (BIRINCHI qatlam himoya):
+ * 0. IP bo'yicha so'rov cheklovi (DDoS)
  * 1. Sessiya yo'q bo'lsa → /login
  * 2. mustChangePassword → /change-password
  * 3. Rolga ruxsat yo'q bo'lsa → /forbidden (403)
  * 4. next-intl til prefiksini qo'shadi
+ *
+ * `/api/*` uchun: bu yerda faqat so'rov cheklovi qo'llanadi (til prefiksi
+ * ham, yo'naltirish ham API uchun mos emas). Ruxsat tekshiruvi route'ning
+ * o'zida — `src/lib/route-guard.ts` majburiy wrapper orqali.
  */
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+  const ip = ipFromHeaders(req.headers);
+  const isApi = pathname.startsWith("/api");
+
+  if (!consume(`${isApi ? "api" : "page"}:${ip}`, isApi ? API_RULE : PAGE_RULE)) {
+    return tooManyRequests();
+  }
+
+  if (isApi) {
+    return NextResponse.next();
+  }
+
   const { locale, pathWithoutLocale } = splitLocale(pathname);
 
   const isLogin = pathWithoutLocale.startsWith("/login");
@@ -82,6 +122,11 @@ export default auth((req) => {
   return handleI18n(req);
 });
 
+/**
+ * `/api/auth/*` ATAYLAB chetda: Auth.js o'z ichki yo'llarini o'zi boshqaradi,
+ * ularga aralashsak login buzilishi mumkin. Brute force himoyasi u yerda
+ * boshqacha — `authorize()` ichidagi login rate limit.
+ */
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|_next|_vercel|.*\\..*).*)"],
 };
