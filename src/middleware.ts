@@ -40,6 +40,28 @@ const handleI18n = createIntlMiddleware({
 const PAGE_RULE = { limit: 300, windowMs: 60_000 };
 const API_RULE = { limit: 60, windowMs: 60_000 };
 
+/**
+ * SERVER ACTION CHEGARASI — IKKINCHI QAVAT.
+ *
+ * `safe-action.ts` ichida ham cheklov bor, lekin u faqat `createAction`
+ * orqali yozilgan action'larga tegishli. Amalda hamma action shunday
+ * yozilmagan: Excel import'ning "preview" qadamlari `requireAdmin()` ni
+ * to'g'ridan-to'g'ri chaqiradi va cheklovni chetlab o'tardi. Ya'ni 5 MB lik
+ * faylni tsiklda yuborib serverni band qilish yo'li ochiq qolgan edi.
+ *
+ * Middleware esa BARCHA action so'rovini ko'radi — qanday yozilganidan
+ * qat'i nazar. Server Action chaqiruvi = `Next-Action` sarlavhasi bilan
+ * kelgan POST.
+ *
+ * Kalit: foydalanuvchi + IP. Sessiyasiz kelgan so'rov uchun faqat IP
+ * (bunday so'rov pastda login'ga yo'naltiriladi, lekin hisoblansin —
+ * yo'naltirishning o'zi ham resurs).
+ *
+ * Chegara `safe-action.ts` dagi bilan bir xil (40/daqiqa) — ikki qatlam
+ * bir-biriga qarama-qarshi kelmasin.
+ */
+const ACTION_RULE = { limit: 40, windowMs: 60_000 };
+
 function tooManyRequests(): NextResponse {
   return new NextResponse(
     "So'rovlar juda ko'p. Bir daqiqadan keyin urinib ko'ring.",
@@ -67,6 +89,7 @@ function splitLocale(pathname: string): {
 /**
  * Asosiy middleware (BIRINCHI qatlam himoya):
  * 0. IP bo'yicha so'rov cheklovi (DDoS)
+ * 0b. Server Action bo'lsa — qo'shimcha, torroq cheklov
  * 1. Sessiya yo'q bo'lsa → /login
  * 2. mustChangePassword → /change-password
  * 3. Rolga ruxsat yo'q bo'lsa → /forbidden (403)
@@ -87,6 +110,17 @@ export default auth((req) => {
 
   if (isApi) {
     return NextResponse.next();
+  }
+
+  // Server Action chaqiruvi: sahifa chegarasi (300/min) bunday YOZISH
+  // so'rovlari uchun juda keng — alohida, torroq chegara qo'llanadi.
+  const isServerAction =
+    req.method === "POST" && req.headers.has("next-action");
+  if (isServerAction) {
+    const actorKey = `action:${req.auth?.user?.id ?? "anon"}:${ip}`;
+    if (!consume(actorKey, ACTION_RULE)) {
+      return tooManyRequests();
+    }
   }
 
   const { locale, pathWithoutLocale } = splitLocale(pathname);
