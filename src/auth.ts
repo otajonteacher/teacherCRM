@@ -28,6 +28,41 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
+const BCRYPT_ROUNDS = 10;
+
+/**
+ * HISOB MAVJUDLIGINI ANIQLASHGA QARSHI (user enumeration)
+ * =======================================================
+ *
+ * Muammo: hisob topilmaganda parolni taqqoslashning hojati yo'qdek
+ * ko'rinadi. Lekin `bcrypt.compare` ataylab sekin (~100 ms), shuning uchun
+ * "hisob yo'q" javobi "parol xato" javobidan sezilarli TEZ qaytadi.
+ *
+ * Hujumchi xabar matnini emas, javob VAQTINI o'lchaydi va shu farq bilan
+ * qaysi email/telefon tizimda ro'yxatdan o'tganini aniqlaydi. Natijada
+ * maktabning haqiqiy foydalanuvchilari ro'yxati yig'iladi — bu fishing
+ * xati yuborish uchun tayyor material. Login cheklovi buni to'xtatmaydi:
+ * chegaraga yetmasdan ham bir necha o'nlab manzilni sinab ko'rish mumkin.
+ *
+ * Yechim: hisob topilmasa ham soxta xesh bilan taqqoslash bajariladi.
+ * Ikkala yo'l ham bir xil vaqt oladi.
+ *
+ * Xesh bir marta hisoblanadi va xotirada qoladi. Uni qo'lda yozib
+ * qo'ymadim — noto'g'ri formatdagi xesh bilan `compare` darhol `false`
+ * qaytaradi va butun himoya jimgina ishlamay qoladi.
+ */
+let dummyHashPromise: Promise<string> | null = null;
+
+function getDummyHash(): Promise<string> {
+  if (!dummyHashPromise) {
+    dummyHashPromise = bcrypt.hash(
+      "vaqt-hujumiga-qarshi-soxta-parol",
+      BCRYPT_ROUNDS
+    );
+  }
+  return dummyHashPromise;
+}
+
 /**
  * DB dan isActive/role qayta o'qish oralig'i: 30 daqiqa.
  *
@@ -91,6 +126,9 @@ export const {
           },
         });
         if (!user) {
+          // Vaqtni tenglashtirish uchun — natijasi ataylab ishlatilmaydi.
+          await bcrypt.compare(password, await getDummyHash());
+
           recordLoginFailure(login, ip);
           await logAudit({
             action: "LOGIN_FAILED",
