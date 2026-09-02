@@ -7,6 +7,13 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { createAction } from "@/lib/safe-action";
 import { checkImportHeaders } from "@/lib/import-guards";
 import {
+  isStrongInitialPassword,
+  isValidCommitEmail,
+  loadValidTeacherIds,
+  normalizeCommitEmail,
+  normalizeCommitPhone,
+} from "@/lib/import-commit-guards";
+import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   isAllowedExcelFile,
@@ -36,6 +43,13 @@ import {
  *   - Barcha yangi hisoblar `mustChangePassword: true` bilan yaratiladi.
  *   - Parollar audit jurnaliga TUSHMAYDI, faqat bir marta admin ekranida
  *     ko'rinadi (CSV bo'lib yuklab olinadi).
+ *
+ * XAVFSIZLIK — TUZATILGAN NUQSON: `commit` qadamiga ma'lumot fayldan emas,
+ * brauzerdan keladi. Ilgari u yerda faqat "matn, uzunligi chegarada" deb
+ * tekshirilardi, ya'ni qo'lda yasalgan so'rov bilan email o'rniga bo'sh
+ * matn, yoki parol siyosatini chetlab o'tgan "aaaaaaaa" kabi parol
+ * yozdirish mumkin edi. Endi `preview` dagi qoidalar yozishdan oldin
+ * SERVERDA qaytadan qo'llanadi.
  */
 
 const BCRYPT_ROUNDS = 10;
@@ -281,9 +295,24 @@ const commitAction = createAction({
       credentials: [],
     };
 
+    // Klientdan kelgan `existingId` — bazada bor-yo'qligi oldindan tekshiriladi.
+    const validTeachers = await loadValidTeacherIds(
+      input.rows.map((row) => row.existingId)
+    );
+
+    const addMessage = (text: string) => {
+      if (outcome.messages.length < 20) outcome.messages.push(text);
+    };
+
     for (const row of input.rows) {
       if (row.existingId && input.mode === "skip") {
         outcome.skipped += 1;
+        continue;
+      }
+
+      if (row.existingId && !validTeachers.has(row.existingId)) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: yangilanadigan o'qituvchi topilmadi.`);
         continue;
       }
 
@@ -299,17 +328,42 @@ const commitAction = createAction({
       }
       if (missingSubject) {
         outcome.failed += 1;
-        if (outcome.messages.length < 20) {
-          outcome.messages.push(`${row.rowNumber}-qator: fan topilmadi ("${missingSubject}").`);
-        }
+        addMessage(`${row.rowNumber}-qator: fan topilmadi ("${missingSubject}").`);
         continue;
       }
 
-      if (!row.email && !row.phone) {
+      /**
+       * Login qiymatlari serverda qaytadan normallashtiriladi va
+       * tekshiriladi — brauzerdan kelgan ko'rinishga ishonmaymiz.
+       * Email har doim kichik harfda saqlanadi, aks holda bir xil email
+       * turli katta-kichik yozuvda ikki hisob bo'lib qolishi mumkin.
+       */
+      const email = normalizeCommitEmail(row.email);
+      if (email !== null && !isValidCommitEmail(email)) {
         outcome.failed += 1;
-        if (outcome.messages.length < 20) {
-          outcome.messages.push(`${row.rowNumber}-qator: email yoki telefon yo'q.`);
-        }
+        addMessage(`${row.rowNumber}-qator: email formati noto'g'ri.`);
+        continue;
+      }
+
+      const phone = normalizeCommitPhone(row.phone);
+      if (row.phone && row.phone.trim() !== "" && phone === null) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: telefon raqami noto'g'ri.`);
+        continue;
+      }
+
+      if (!email && !phone) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: email yoki telefon yo'q.`);
+        continue;
+      }
+
+      // Parol siyosati: preview dagi qoidaning aynan o'zi qayta qo'llanadi.
+      if (row.password !== undefined && !isStrongInitialPassword(row.password)) {
+        outcome.failed += 1;
+        addMessage(
+          `${row.rowNumber}-qator: parol siyosatiga mos emas (kamida 8 belgi, harf va raqam).`
+        );
         continue;
       }
 
@@ -330,8 +384,8 @@ const commitAction = createAction({
               where: { id: existing.userId },
               data: {
                 fullName: row.fullName,
-                email: row.email ?? null,
-                phone: row.phone ?? null,
+                email,
+                phone,
                 locale: row.locale,
                 isActive: row.isActive,
               },
@@ -351,8 +405,8 @@ const commitAction = createAction({
               user: {
                 create: {
                   fullName: row.fullName,
-                  email: row.email ?? null,
-                  phone: row.phone ?? null,
+                  email,
+                  phone,
                   locale: row.locale,
                   isActive: row.isActive,
                   role: "TEACHER",
@@ -368,18 +422,16 @@ const commitAction = createAction({
           // Parol faqat shu javobda qaytadi — bazada xesh, auditda yo'q.
           outcome.credentials.push({
             name: row.fullName,
-            login: row.email ?? row.phone ?? "",
+            login: email ?? phone ?? "",
             password,
           });
           outcome.created += 1;
         }
       } catch {
         outcome.failed += 1;
-        if (outcome.messages.length < 20) {
-          outcome.messages.push(
-            `${row.rowNumber}-qator: yozib bo'lmadi (login band bo'lishi mumkin).`
-          );
-        }
+        addMessage(
+          `${row.rowNumber}-qator: yozib bo'lmadi (login band bo'lishi mumkin).`
+        );
       }
     }
 
