@@ -6,6 +6,11 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { createAction } from "@/lib/safe-action";
 import { checkImportHeaders } from "@/lib/import-guards";
 import {
+  loadValidAcademicYearIds,
+  loadValidClassIds,
+  loadValidTeacherIds,
+} from "@/lib/import-commit-guards";
+import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   isAllowedExcelFile,
@@ -35,6 +40,13 @@ import {
  *
  * Dublikat mezoni: bir o'quv yilida bir xil nomdagi sinf (schema'dagi
  * @@unique([name, academicYearId]) bilan bir xil qoida).
+ *
+ * XAVFSIZLIK — TUZATILGAN NUQSON: `commit` ga kelgan `academicYearId`,
+ * `homeroomTeacherId` va `existingId` fayldan emas, BRAUZERDAN keladi.
+ * Ilgari ular qaytadan tekshirilmasdi (izohda "tekshiriladi" deb yozilgan
+ * bo'lsa ham), ya'ni qo'lda yasalgan so'rov sinfni istalgan o'quv yiliga
+ * yoki istalgan o'qituvchiga bog'lab qo'yishi mumkin edi. Endi har bir id
+ * yozishdan oldin bazada mavjudligi bilan solishtiriladi.
  */
 
 export type ClassPreviewState =
@@ -293,9 +305,40 @@ const commitAction = createAction({
       credentials: [],
     };
 
+    /**
+     * Klientdan kelgan bog'lanish id'lari — bazada bor-yo'qligi bitta
+     * so'rovda tekshiriladi (har qator uchun alohida so'rov qilmaymiz).
+     */
+    const [validYears, validTeachers, validClasses] = await Promise.all([
+      loadValidAcademicYearIds(input.rows.map((row) => row.academicYearId)),
+      loadValidTeacherIds(input.rows.map((row) => row.homeroomTeacherId)),
+      loadValidClassIds(input.rows.map((row) => row.existingId)),
+    ]);
+
+    const addMessage = (text: string) => {
+      if (outcome.messages.length < 20) outcome.messages.push(text);
+    };
+
     for (const row of input.rows) {
       if (row.existingId && input.mode === "skip") {
         outcome.skipped += 1;
+        continue;
+      }
+
+      // Begona yoki o'chirilgan id — qator butunlay tashlanadi.
+      if (row.academicYearId && !validYears.has(row.academicYearId)) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: o'quv yili topilmadi (ma'lumot eskirgan bo'lishi mumkin).`);
+        continue;
+      }
+      if (row.homeroomTeacherId && !validTeachers.has(row.homeroomTeacherId)) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: sinf rahbari topilmadi.`);
+        continue;
+      }
+      if (row.existingId && !validClasses.has(row.existingId)) {
+        outcome.failed += 1;
+        addMessage(`${row.rowNumber}-qator: yangilanadigan sinf topilmadi.`);
         continue;
       }
 
@@ -325,11 +368,9 @@ const commitAction = createAction({
         }
       } catch {
         outcome.failed += 1;
-        if (outcome.messages.length < 20) {
-          outcome.messages.push(
-            `${row.rowNumber}-qator: yozib bo'lmadi ("${row.name}"). Sinf rahbari boshqa sinfga biriktirilgan bo'lishi mumkin.`
-          );
-        }
+        addMessage(
+          `${row.rowNumber}-qator: yozib bo'lmadi ("${row.name}"). Sinf rahbari boshqa sinfga biriktirilgan bo'lishi mumkin.`
+        );
       }
     }
 
