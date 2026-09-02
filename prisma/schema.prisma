@@ -127,6 +127,14 @@ model User {
   isActive           Boolean  @default(true)
   // Yangi hisob: birinchi kirishda parol almashtiriladi. Demo seed = false.
   mustChangePassword Boolean  @default(true)
+  // Parol oxirgi marta qachon almashtirilgani.
+  //
+  // XAVFSIZLIK: sessiya JWT ko'rinishida (serverda saqlanmaydi), shuning
+  // uchun parol almashtirilganda o'g'irlangan token o'z-o'zidan yaroqsiz
+  // bo'lmaydi. Shu maydon tokenning berilgan vaqti bilan solishtiriladi:
+  // parol almashgan vaqtidan OLDIN berilgan token darhol bekor qilinadi.
+  // NULL = hech qachon almashtirilmagan (eski hisoblar).
+  passwordChangedAt  DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

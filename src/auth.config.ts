@@ -78,6 +78,11 @@ export const authConfig = {
         session.user.role = token.role as Role;
         session.user.locale = token.locale as Locale;
         session.user.mustChangePassword = token.mustChangePassword === true;
+        // Parol vaqti — `requireAuth` shu qiymatni bazadagi
+        // `passwordChangedAt` bilan solishtiradi. Yo'q bo'lsa 0:
+        // eski (bu o'zgarishdan oldin berilgan) tokenlar parol
+        // almashtirilishi bilan bekor bo'ladi.
+        session.user.pwdAt = typeof token.pwdAt === "number" ? token.pwdAt : 0;
       }
       return session;
     },

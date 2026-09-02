@@ -18,6 +18,13 @@ const changePasswordSchema = z
   .refine((value) => value.newPassword === value.confirmPassword, {
     message: "Yangi parol tasdiqi mos kelmadi.",
     path: ["confirmPassword"],
+  })
+  .refine((value) => value.newPassword !== value.currentPassword, {
+    // Aks holda `mustChangePassword` bilan yaratilgan hisob egasi
+    // vaqtinchalik parolni qayta kiritib majburiy almashtirishdan
+    // qutulib ketardi — admin bergan parol amalda kuchda qolardi.
+    message: "Yangi parol joriy paroldan farq qilishi kerak.",
+    path: ["newPassword"],
   });
 
 export async function changePassword(
@@ -60,6 +67,10 @@ export async function changePassword(
     data: {
       passwordHash,
       mustChangePassword: false,
+      // BARCHA eski sessiyalarni bekor qiladi — shu vaqtdan oldin
+      // berilgan tokenlar `requireAuth` da to'xtatiladi. Parol
+      // o'g'irlangan bo'lsa, hujumchi shu zahoti tashqarida qoladi.
+      passwordChangedAt: new Date(),
     },
   });
 

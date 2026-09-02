@@ -74,6 +74,12 @@ function getDummyHash(): Promise<string> {
  * Oraliqni juda uzoq qilish (masalan 6 soat) bloklashni amalda
  * foydasiz qiladi: sessiya umri 8 soat, ya'ni bo'shatilgan o'qituvchi
  * ish kunining oxirigacha tizimda qolaverardi.
+ *
+ * ESLATMA: sahifalar va server action'lar uchun asosiy qalqon endi
+ * `requireAuth` ichidagi tekshiruv — u HAR so'rovda bazaga qaraydi va
+ * bloklash ham, parol almashtirish ham darhol kuchga kiradi. Bu davriy
+ * tekshiruv ikkinchi qatlam bo'lib qoladi (masalan `auth()` to'g'ridan
+ * chaqirilgan joylar uchun).
  */
 const JWT_RECHECK_MS = 30 * 60 * 1000;
 
@@ -160,6 +166,10 @@ export const {
           role: user.role,
           locale: user.locale,
           mustChangePassword: user.mustChangePassword,
+          // Shu sessiya QAYSI parol uchun berilayotgani.
+          pwdAt: user.passwordChangedAt
+            ? user.passwordChangedAt.getTime()
+            : 0,
         };
       },
     }),
@@ -171,6 +181,12 @@ export const {
         token.role = user.role;
         token.locale = user.locale;
         token.mustChangePassword = user.mustChangePassword;
+        // FAQAT shu yerda — kirish paytida — yoziladi va boshqa hech
+        // qachon yangilanmaydi. Agar quyidagi davriy tekshiruvda uni
+        // bazadagi yangi qiymat bilan almashtirsak, o'g'irlangan token
+        // o'zini "yangi parol bilan berilgan" qilib ko'rsatib, chiqarib
+        // yuborilishdan qutulib qolardi.
+        token.pwdAt = typeof user.pwdAt === "number" ? user.pwdAt : 0;
         token.checkedAt = Date.now();
         return token;
       }
@@ -196,6 +212,7 @@ export const {
         role: Role;
         locale: Locale;
         mustChangePassword: boolean;
+        passwordChangedAt: Date | null;
       } | null = null;
 
       try {
@@ -206,6 +223,7 @@ export const {
             role: true,
             locale: true,
             mustChangePassword: true,
+            passwordChangedAt: true,
           },
         });
       } catch (error) {
@@ -227,6 +245,16 @@ export const {
 
       if (!dbUser.isActive) {
         logError("auth.session_invalidated", new Error("hisob bloklangan"));
+        return null;
+      }
+
+      // Parol shu token berilgandan keyin almashtirilgan — token o'lik.
+      const tokenPwdAt = typeof token.pwdAt === "number" ? token.pwdAt : 0;
+      if (
+        dbUser.passwordChangedAt &&
+        dbUser.passwordChangedAt.getTime() > tokenPwdAt
+      ) {
+        logError("auth.session_invalidated", new Error("parol almashtirilgan"));
         return null;
       }
 

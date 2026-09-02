@@ -2,6 +2,7 @@ import type { Role } from "@prisma/client";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { redirect } from "@/i18n/navigation";
+import { db } from "./db";
 import { hasRole } from "./rbac";
 
 /**
@@ -37,6 +38,47 @@ export function redirectNever(path: string): never {
 }
 
 /**
+ * SESSIYANING HALI HAM HAQIQIYLIGINI TEKSHIRADI (bazadan).
+ * ========================================================
+ *
+ * Nima uchun kerak: sessiya JWT ko'rinishida — u serverda saqlanmaydi,
+ * tokenning O'ZI kalit. Shuning uchun token berilgandan keyin sodir
+ * bo'lgan hodisalar (parol almashtirildi, hisob bloklandi) tokenga
+ * hech qanday ta'sir qilmaydi. U muddati tugaguncha (8 soat) ishlayveradi.
+ *
+ * Ikkita amaliy holat:
+ *   1. O'qituvchi paroli o'g'irlanganini sezdi va parolni almashtirdi.
+ *      Tekshiruvsiz — hujumchining brauzeridagi eski token ishlayverardi.
+ *   2. Xodim ishdan bo'shatildi va hisobi bloklandi. `auth.ts` dagi
+ *      davriy tekshiruv buni 30 daqiqagacha kechikish bilan sezardi.
+ *
+ * Endi ikkalasi ham DARHOL kuchga kiradi. Narxi — har so'rovda bitta
+ * birlamchi kalit bo'yicha so'rov (~1 ms).
+ *
+ * Xato bo'lsa (baza javob bermasa) sessiya O'TKAZILMAYDI — fail-closed.
+ * Ochiq qoldirgandan ko'ra ishlamagani yaxshi.
+ */
+async function assertSessionStillValid(user: SessionUser): Promise<void> {
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { isActive: true, passwordChangedAt: true },
+  });
+
+  // Hisob o'chirilgan yoki bloklangan.
+  if (!dbUser || !dbUser.isActive) {
+    redirectNever("/login");
+  }
+
+  // Parol shu sessiya berilgandan KEYIN almashtirilgan — sessiya o'lik.
+  if (
+    dbUser.passwordChangedAt &&
+    dbUser.passwordChangedAt.getTime() > (user.pwdAt ?? 0)
+  ) {
+    redirectNever("/login");
+  }
+}
+
+/**
  * Sessiyani talab qiladi.
  * Sessiya yo'q bo'lsa — /login ga yo'naltiradi (bu yerdan keyin kod bajarilmaydi).
  */
@@ -46,6 +88,8 @@ export async function requireAuth(): Promise<SessionUser> {
   if (!session?.user) {
     redirectNever("/login");
   }
+
+  await assertSessionStillValid(session.user);
 
   return session.user;
 }
