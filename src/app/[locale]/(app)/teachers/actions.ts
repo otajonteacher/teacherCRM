@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
 import { teacherUpdateSchema, teacherWriteSchema } from "@/lib/teachers";
+import { loadValidSubjectIds } from "@/lib/import-commit-guards";
 import { redirectNever } from "@/lib/auth-guard";
 
 /**
@@ -24,10 +25,31 @@ export type TeacherFormState = { error?: string };
 
 const BCRYPT_ROUNDS = 10;
 
+/**
+ * `subjectIds` brauzerdan keladi; sxema faqat "30 tadan ko'p bo'lmagan matn
+ * ro'yxati" deb tekshiradi. Mavjud bo'lmagan id ni Prisma baribir rad etadi,
+ * lekin `students/actions.ts` dagi bilan bir xil sababga ko'ra tekshiruvni
+ * bazaga tashlab qo'ymaymiz: yozishdan OLDIN aniqlaymiz.
+ *
+ * Alohida e'tibor: tahrirlashda `subjects: { set: [...] }` ishlatiladi. Agar
+ * ro'yxatning bir qismi yaroqsiz bo'lsa, amal yarim bajarilib o'qituvchining
+ * mavjud fanlari uzilib qolishi mumkin edi — shuning uchun BARCHA id lar
+ * birga tekshiriladi va bittasi yaroqsiz bo'lsa hech narsa yozilmaydi.
+ */
+async function assertSubjectsExist(subjectIds: string[]) {
+  if (subjectIds.length === 0) return;
+  const valid = await loadValidSubjectIds(subjectIds);
+  if (subjectIds.some((id) => !valid.has(id))) {
+    throw new Error("Tanlangan fanlardan biri topilmadi.");
+  }
+}
+
 const createTeacherAction = createAction({
   roles: ["ADMIN"],
   schema: teacherWriteSchema,
   handler: async (input): Promise<{ id: string }> => {
+    await assertSubjectsExist(input.subjectIds);
+
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 
     const teacher = await db.teacher.create({
@@ -74,6 +96,8 @@ const updateTeacherAction = createAction({
     if (!existing) {
       redirectNever("/forbidden");
     }
+
+    await assertSubjectsExist(input.subjectIds);
 
     // Ikkita jadval birga o'zgaradi — tranzaksiya: biri yozilib, ikkinchisi
     // xato bersa hech narsa saqlanmaydi.

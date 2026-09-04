@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
 import { studentUpdateSchema, studentWriteSchema } from "@/lib/students";
+import { loadValidClassIds } from "@/lib/import-commit-guards";
 import { redirectNever } from "@/lib/auth-guard";
 
 export type StudentFormState = { error?: string };
@@ -12,6 +13,26 @@ function toDate(value?: string) {
   if (!value) return undefined;
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+/**
+ * `classId` brauzerdan keladi va sxema faqat "bo'sh bo'lmagan matn" deb
+ * tekshiradi. Formada `<select>` bo'lsa ham, Server Action ochiq endpoint —
+ * unga istalgan id yuborilishi mumkin.
+ *
+ * Bazadagi tashqi kalit (foreign key) noto'g'ri id ni baribir rad etadi, ya'ni
+ * bu "yozuvni buzish" teshigi emas. Lekin tekshiruvni ataylab bazaga
+ * tashlab qo'ymaymiz: FK xatosi umumiy "Bog'liq yozuv topilmadi" xabariga
+ * aylanadi va sabab noaniq qoladi, bundan tashqari xato Prisma darajasida
+ * ko'tarilib audit yozuvini ham chalkashtiradi. Shu sababli yozishdan OLDIN
+ * o'zimiz tekshiramiz — fail-closed.
+ */
+async function assertClassExists(classId?: string | null) {
+  if (!classId) return;
+  const valid = await loadValidClassIds([classId]);
+  if (!valid.has(classId)) {
+    throw new Error("Tanlangan sinf topilmadi.");
+  }
 }
 
 async function upsertGuardian(input: {
@@ -50,6 +71,8 @@ const createStudentAction = createAction({
   roles: ["ADMIN"],
   schema: studentWriteSchema,
   handler: async (input): Promise<{ id: string }> => {
+    await assertClassExists(input.classId);
+
     const guardianId = await upsertGuardian(input);
     const student = await db.student.create({
       data: {
@@ -85,6 +108,8 @@ const updateStudentAction = createAction({
     if (!existing) {
       redirectNever("/forbidden");
     }
+
+    await assertClassExists(input.classId);
 
     const guardianId = await upsertGuardian({
       ...input,
