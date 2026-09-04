@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-guard";
+import { redirectNever, requireAdmin } from "@/lib/auth-guard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TeacherForm } from "../../teacher-form";
@@ -29,8 +29,9 @@ export default async function EditTeacherPage({
       subjects: { select: { id: true } },
     },
   });
+  // Yo'q id uchun bo'sh sahifa qaytarmaymiz — 403 ga yo'naltiramiz.
   if (!teacher) {
-    return null;
+    redirectNever("/forbidden");
   }
 
   const subjects = await db.subject.findMany({

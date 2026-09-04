@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth-guard";
+import { redirectNever, requireRole } from "@/lib/auth-guard";
 import { assertCanAccessStudent, studentScope } from "@/lib/scope";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +19,10 @@ export default async function StudentProfilePage({
     where: { AND: [{ id: params.id }, studentScope(user)] },
     include: { class: true, guardian: true },
   });
+  // Ikkinchi qatlam: scope filtri hech narsa qaytarmasa ham bo'sh sahifa
+  // emas, 403 chiqadi. Ya'ni "bor/yo'q" farqi tashqariga sezilmaydi.
   if (!student) {
-    return null;
+    redirectNever("/forbidden");
   }
 
   const canWrite = user.role === "ADMIN";
