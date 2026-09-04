@@ -143,11 +143,27 @@ export function mapClassRow(
  * Brauzerdan kelgan qatorlar. Bog'liq yozuvlar (o'quv yili, rahbar)
  * preview qadamida id'ga aylantirilgan bo'ladi, lekin commit paytida
  * ularning mavjudligi qaytadan tekshiriladi.
+ *
+ * PARALLEL CHEGARASI (tuzatilgan nuqson): bu sxema ilgari `min(1).max(20)`
+ * deb yozilgan edi, holbuki formadagi `classWriteSchema` faqat `GRADES`
+ * (1–11) ni qabul qiladi. Ya'ni `preview` ni chetlab o'tib to'g'ridan-to'g'ri
+ * `commit` ga qo'lda yasalgan payload yuborsa, 12–20 parallelli sinf
+ * yaratish mumkin edi. Bunday sinfni keyin formada tahrirlash IMKONSIZ
+ * bo'lardi (validatsiya o'tmaydi) va reyting "parallel" qamrovi kutilmagan
+ * guruhni hisoblab qolardi.
+ *
+ * Endi chegara `GRADES` ning o'zidan olinadi — ro'yxat o'zgarsa ikki joyni
+ * qo'lda moslashtirish kerak bo'lmaydi.
  */
 const classCommitRowSchema = z.object({
   rowNumber: z.number().int().nonnegative(),
   name: z.string().min(1).max(40),
-  grade: z.number().int().min(1).max(20),
+  grade: z
+    .number()
+    .int()
+    .refine((value) => GRADE_VALUES.includes(value), {
+      message: "Parallel ruxsat etilgan ro'yxatda yo'q.",
+    }),
   academicYearId: z.string().min(1).nullable().optional(),
   homeroomTeacherId: z.string().min(1).nullable().optional(),
   existingId: z.string().min(1).nullable().optional(),

@@ -369,19 +369,75 @@ export function mapTeacherRow(values: Record<string, string>): MappedRow<Teacher
 /* Boshlang'ich parol generatori                                       */
 /* ------------------------------------------------------------------ */
 
-const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+/**
+ * Adashtiruvchi belgilar (l, o, 0, 1) ataylab kiritilmagan — parol qo'lda
+ * yoki qog'ozdan ko'chiriladi.
+ *
+ * Alifbo uzunligi 32 (24 harf + 8 raqam) — 256 ga butun bo'linadi, ya'ni
+ * `bayt % 32` da modulo qoldiq bias'i yo'q.
+ */
+const PASSWORD_LETTERS = "abcdefghijkmnpqrstuvwxyz";
+const PASSWORD_DIGITS = "23456789";
+const PASSWORD_ALPHABET = PASSWORD_LETTERS + PASSWORD_DIGITS;
+
+/** Har bir belgi ~5 bit → 12 belgi ≈ 60 bit. */
+export const INITIAL_PASSWORD_LENGTH = 12;
+
+/**
+ * Bir tekis taqsimlangan tasodifiy indeks.
+ *
+ * NIMA UCHUN REJECTION SAMPLING: `bayt % 24` da 0..15 oralig'idagi harflar
+ * qolganlaridan ko'proq chiqadi (256 = 10*24 + 16). Bu taqsimotni qiyshaytiradi
+ * va parolni taxmin qilishni osonlashtiradi. Shuning uchun oxirgi to'liq
+ * bo'lmagan blokka tushgan baytni rad etib, qaytadan olamiz.
+ */
+function randomIndex(limit: number): number {
+  const ceiling = Math.floor(256 / limit) * limit;
+  const byte = new Uint8Array(1);
+  for (;;) {
+    globalThis.crypto.getRandomValues(byte);
+    if (byte[0] < ceiling) return byte[0] % limit;
+  }
+}
+
+function randomChar(alphabet: string): string {
+  return alphabet[randomIndex(alphabet.length)];
+}
 
 /**
  * Excel'da parol ustuni bo'sh bo'lsa ishlatiladi.
  * Natija `passwordSchema` talabiga mos: 8+ belgi, harf va raqam bor.
- * Adashtiruvchi belgilar (l, o, 0, 1) alifboga kiritilmagan.
+ *
+ * OLDINGI NUSXADAGI NUQSONLAR (tuzatildi):
+ *
+ *   1. Qat'iy `Maktab` prefiksi. Bir bitga ham entropiya qo'shmasdi, lekin
+ *      formatni oshkor qilardi: bitta parolni ko'rgan odam qolganlarining
+ *      ham shu prefiks bilan boshlanishini bilib olardi va taxmin maydonini
+ *      faqat tasodifiy qismga qisqartirardi.
+ *   2. Oxirgi raqam `bytes[0] % 10` edi — birinchi harf ham SHU BAYTdan
+ *      (`bytes[0] % 32`) olinardi. Ya'ni raqam mustaqil emas: birinchi harfni
+ *      bilgan odam uchun raqam variantlari keskin kamayardi.
+ *   3. Umumiy kuch ~40 bit edi. Endi ~60 bit.
+ *
+ * Kamida bitta harf va bitta raqam KAFOLATLANADI (aks holda tasodifan faqat
+ * harflardan iborat parol chiqib `passwordSchema` ni buzishi mumkin edi), lekin
+ * ular aralashtiriladi — qat'iy pozitsiyada qolsa yana format oshkor bo'lardi.
  */
 export function generateInitialPassword(): string {
-  const bytes = new Uint8Array(8);
-  globalThis.crypto.getRandomValues(bytes);
-  const body = Array.from(bytes, (byte) => PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length]).join("");
-  const digit = String(bytes[0] % 10);
-  return `Maktab${body}${digit}`;
+  const chars = [randomChar(PASSWORD_LETTERS), randomChar(PASSWORD_DIGITS)];
+  while (chars.length < INITIAL_PASSWORD_LENGTH) {
+    chars.push(randomChar(PASSWORD_ALPHABET));
+  }
+
+  // Fisher-Yates: kafolatlangan harf va raqam boshida turib qolmasin.
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomIndex(i + 1);
+    const swap = chars[i];
+    chars[i] = chars[j];
+    chars[j] = swap;
+  }
+
+  return chars.join("");
 }
 
 /* ------------------------------------------------------------------ */

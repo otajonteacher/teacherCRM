@@ -28,6 +28,10 @@ import { db } from "./db";
  * Eslatma: bu amallar faqat ADMIN uchun ochiq, ya'ni bu "rolni oshirish"
  * teshigi emas. Lekin hisobi o'g'irlangan admin yoki XSS orqali yuborilgan
  * so'rov bazani buzib qo'yishi mumkin — shuning uchun qatlam yopiladi.
+ *
+ * Bu yerdagi `loadValid*Ids` yordamchilari importdan tashqari oddiy
+ * formalarda ham ishlatiladi (o'quvchi/o'qituvchi yaratish) — bog'liq id
+ * bazada bor-yo'qligini yozishdan OLDIN tekshirish uchun.
  */
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -109,6 +113,17 @@ export function loadValidClassIds(
 ): Promise<Set<string>> {
   return existingIds(ids, (unique) =>
     db.class.findMany({
+      where: { id: { in: unique } },
+      select: { id: true },
+    })
+  );
+}
+
+export function loadValidSubjectIds(
+  ids: Array<string | null | undefined>
+): Promise<Set<string>> {
+  return existingIds(ids, (unique) =>
+    db.subject.findMany({
       where: { id: { in: unique } },
       select: { id: true },
     })
