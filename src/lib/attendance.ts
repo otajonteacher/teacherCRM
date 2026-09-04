@@ -31,6 +31,14 @@ export const ATTENDANCE_STATUSES = [
 export type AttendanceStatusValue = (typeof ATTENDANCE_STATUSES)[number];
 
 /**
+ * Bir so'rovdagi belgilar soni chegarasi — bitta sinf uchun keng zaxira.
+ *
+ * Chegara IKKI joyda ishlaydi: `toAttendanceInput` da yig'ishni to'xtatadi
+ * va zod `.max()` da so'rovni rad etadi.
+ */
+export const MAX_ATTENDANCE_ENTRIES = 300;
+
+/**
  * Formadagi radio maydon nomi: "entry:<studentId>".
  *
  * Nima uchun shunday: har bir o'quvchi o'zining alohida radio guruhiga ega
@@ -47,6 +55,12 @@ export const DATE_TEXT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * FormData'dagi "entry:<studentId>" maydonlarini ro'yxatga aylantiradi.
  * Belgilanmagan o'quvchi umuman yuborilmaydi — ya'ni yarim to'ldirilgan
  * jurnalni ham saqlash mumkin (o'qituvchi keyin davom ettiradi).
+ *
+ * XAVFSIZLIK: yig'ish chegaradan bittaga oshganda to'xtaydi. Bu funksiya zod
+ * `.max()` dan OLDIN ishlaydi, shuning uchun cheksiz yig'ish qo'lda yasalgan
+ * katta so'rov bilan protsessor va xotirani band qilish yo'lini ochib
+ * qo'yardi. Bittaga oshirib to'xtatamiz — shunda zod so'rovni RAD ETADI,
+ * ma'lumot jimgina kesilib qolmaydi.
  */
 function toAttendanceInput(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
@@ -64,6 +78,8 @@ function toAttendanceInput(raw: unknown): unknown {
       studentId,
       status: Array.isArray(value) ? value[0] : value,
     });
+
+    if (entries.length > MAX_ATTENDANCE_ENTRIES) break;
   }
 
   return { lessonId: source.lessonId, date: source.date, entries };
@@ -72,8 +88,8 @@ function toAttendanceInput(raw: unknown): unknown {
 /**
  * Davomatni saqlash sxemasi.
  *
- * `max(300)` — bitta sinf uchun aql bovar qiladigan yuqori chegara. Bu
- * cheklov Server Action'ga qo'lda yuborilgan katta so'rovdan himoya qiladi.
+ * `max(MAX_ATTENDANCE_ENTRIES)` — Server Action'ga qo'lda yuborilgan katta
+ * so'rovdan himoya.
  */
 export const attendanceSaveSchema = z.preprocess(
   toAttendanceInput,
@@ -87,7 +103,7 @@ export const attendanceSaveSchema = z.preprocess(
           status: z.enum(ATTENDANCE_STATUSES),
         })
       )
-      .max(300),
+      .max(MAX_ATTENDANCE_ENTRIES),
   })
 );
 

@@ -19,12 +19,21 @@ import { idField, toNumber } from "./academics";
  * Ma'lumot modeli davomatdan FARQ QILADI:
  *
  *   Attendance -> lessonId ga bog'langan, @@unique([studentId, lessonId, date])
- *   Grade      -> subjectId ga bog'langan, unique cheklovi YO'Q
+ *   Grade      -> @@unique([studentId, lessonId, date, type])
  *
- * Ya'ni baho darsga emas, FANGA bog'lanadi — sxemani o'zgartirmaslik uchun
- * shunday kelishildi. Unique cheklovi yo'qligi sababli idempotentlik ilova
- * qatlamida ta'minlanadi: server (fan + chorak + sana + tur + o'quvchi)
- * bo'yicha mavjud bahoni O'ZI topadi. Klientdan baho ID si OLINMAYDI.
+ * TUZATILGAN IZOH: ilgari bu yerda "Grade da unique cheklovi YO'Q" deb
+ * yozilgan edi — bu NOTO'G'RI. Cheklov bor, lekin u `lessonId` ni ham o'z
+ * ichiga oladi. `lessonId` esa `null` bo'lishi mumkin, PostgreSQL da esa
+ * unique cheklovida `NULL` qiymatlar bir-biriga TENG hisoblanmaydi. Ya'ni
+ * `lessonId: null` bo'lgan qatorlar cheklovdan chetda qoladi va takrorlanishi
+ * mumkin — shuning uchun cheklovga tayanib bo'lmaydi.
+ *
+ * Shu sababli idempotentlik ilova qatlamida ta'minlanadi: server (fan +
+ * chorak + sana + tur + o'quvchi) bo'yicha mavjud bahoni O'ZI topadi.
+ * Klientdan baho ID si OLINMAYDI.
+ *
+ * `lessonId: null` qatorlarini tozalash va cheklovni kuchaytirish —
+ * 1-to'lqin, PR F (migratsiya talab qiladi).
  *
  * Bu fayl faqat ma'lumot shakli va hisob-kitob bilan shug'ullanadi.
  * "Bu odam shu fanga baho qo'yishi mumkinmi?" savoli — scope.ts
@@ -39,6 +48,15 @@ export type GradeTypeValue = (typeof GRADE_TYPES)[number];
 /** 100 ballik tizim chegaralari. */
 export const GRADE_MIN = 0;
 export const GRADE_MAX = 100;
+
+/**
+ * Bir so'rovda qabul qilinadigan katakcha soni chegarasi.
+ *
+ * 30 o'quvchi × ~12 dars kuni ≈ 360, shuning uchun 2000 keng zaxira.
+ * Chegara IKKI joyda ishlaydi: `toGridInput` da yig'ishni to'xtatadi
+ * (xotira/protsessor himoyasi) va zod `.max()` da so'rovni rad etadi.
+ */
+export const MAX_GRID_ENTRIES = 2000;
 
 /**
  * Jadvaldagi maydon nomi: "grade:<studentId>:<YYYY-MM-DD>".
@@ -67,6 +85,21 @@ export function isGradeType(value: unknown): value is GradeTypeValue {
  *
  * Sana shakli buzuq bo'lsa katakcha butunlay tashlanadi: bu yerda xato
  * qaytarish keraksiz, chunki to'g'ri forma bunday qiymat yubormaydi.
+ *
+ * XAVFSIZLIK — NIMA UCHUN YIG'ISH CHEGARALANGAN:
+ * Bu funksiya zod `.max()` tekshiruvidan OLDIN ishlaydi. Ilgari u kelgan
+ * barcha maydonlarni cheksiz yig'ardi va chegara faqat massiv TO'LIQ
+ * yasalgandan keyin qo'llanardi. `serverActions.bodySizeLimit` 6mb bo'lgani
+ * uchun qo'lda yasalgan so'rov yuz minglab `grade:...` maydonini yuborib,
+ * har bir so'rovda protsessor va xotirani band qilishi mumkin edi — bu
+ * arzon DoS yo'li (Server Action'ning 40/daqiqa limiti bunday og'ir
+ * so'rovlarni to'xtatib qolmaydi).
+ *
+ * Endi yig'ish chegaradan BITTAGA oshganda to'xtaydi. Ataylab bittaga
+ * oshiriladi: shunda massiv ham cheklangan bo'ladi, ham zod `.max()`
+ * shartini buzadi va so'rov RAD ETILADI. Ma'lumotni jimgina kesib
+ * qoldirmaymiz — kesish o'qituvchining bir qism bahosini ko'rinmas
+ * ravishda yo'qotishi degani bo'lardi.
  */
 function toGridInput(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
@@ -96,6 +129,9 @@ function toGridInput(raw: unknown): unknown {
       date,
       value: text === "" || text === undefined ? null : text,
     });
+
+    // Chegaradan bittaga oshdik — to'xtaymiz. Zod `.max()` buni rad etadi.
+    if (entries.length > MAX_GRID_ENTRIES) break;
   }
 
   return {
@@ -110,9 +146,7 @@ function toGridInput(raw: unknown): unknown {
 /**
  * Jadvalni saqlash sxemasi.
  *
- * `max(2000)` — aql bovar qiladigan yuqori chegara (30 o'quvchi × ~12 dars
- * kuni ≈ 360). Bu cheklov Server Action'ga qo'lda yuborilgan katta
- * so'rovdan himoya qiladi.
+ * `max(MAX_GRID_ENTRIES)` — qo'lda yuborilgan katta so'rovdan himoya.
  */
 export const gradeGridSaveSchema = z.preprocess(
   toGridInput,
@@ -135,7 +169,7 @@ export const gradeGridSaveSchema = z.preprocess(
           ]),
         })
       )
-      .max(2000),
+      .max(MAX_GRID_ENTRIES),
   })
 );
 
