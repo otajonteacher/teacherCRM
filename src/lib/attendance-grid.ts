@@ -32,6 +32,15 @@ import { statusFromAbbreviation } from "./journal";
 /** Katakcha maydoni: "ag:<studentId>:<lessonId>". */
 export const ATTENDANCE_GRID_FIELD_PREFIX = "ag:";
 
+/**
+ * Bir so'rovdagi katakcha soni chegarasi.
+ *
+ * 30 o'quvchi × 8 dars = 240 katakcha, shuning uchun 900 keng, lekin
+ * cheksiz emas. Chegara IKKI joyda ishlaydi: `toGridInput` da yig'ishni
+ * to'xtatadi va zod `.max()` da so'rovni rad etadi.
+ */
+export const MAX_ATTENDANCE_GRID_ENTRIES = 900;
+
 /** Katakcha kaliti — klient va server bir xil kalitdan foydalanadi. */
 export function attendanceCellKey(
   studentId: string,
@@ -40,6 +49,13 @@ export function attendanceCellKey(
   return `${studentId}|${lessonId}`;
 }
 
+/**
+ * XAVFSIZLIK: yig'ish chegaradan bittaga oshganda to'xtaydi. Bu funksiya zod
+ * `.max()` dan OLDIN ishlaydi, shuning uchun cheksiz yig'ish qo'lda yasalgan
+ * katta so'rov bilan protsessor va xotirani band qilish yo'li bo'lardi.
+ * Bittaga oshirib to'xtatamiz — shunda zod so'rovni RAD ETADI va
+ * o'qituvchining ma'lumoti jimgina kesilib qolmaydi.
+ */
 function toGridInput(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
 
@@ -69,6 +85,8 @@ function toGridInput(raw: unknown): unknown {
     if (status === null) continue;
 
     entries.push({ studentId, lessonId, status });
+
+    if (entries.length > MAX_ATTENDANCE_GRID_ENTRIES) break;
   }
 
   return {
@@ -78,10 +96,6 @@ function toGridInput(raw: unknown): unknown {
   };
 }
 
-/**
- * `max(900)` — qo'lda yasalgan katta so'rovdan himoya.
- * 30 o'quvchi × 8 dars = 240 katakcha, shuning uchun 900 keng, lekin cheksiz emas.
- */
 export const attendanceGridSaveSchema = z.preprocess(
   toGridInput,
   z.object({
@@ -95,7 +109,7 @@ export const attendanceGridSaveSchema = z.preprocess(
           status: z.enum(ATTENDANCE_STATUSES),
         })
       )
-      .max(900),
+      .max(MAX_ATTENDANCE_GRID_ENTRIES),
   })
 );
 
