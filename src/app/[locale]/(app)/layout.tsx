@@ -1,7 +1,6 @@
 import { GraduationCap } from "lucide-react";
 import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
-import { redirect } from "@/i18n/navigation";
+import { requireAuth } from "@/lib/auth-guard";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -15,15 +14,22 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Autentifikatsiya qorovuli (RBAC poydevori)
-  const session = await auth();
-  if (!session?.user) {
-    redirect("/login");
-  }
+  // Autentifikatsiya qorovuli (RBAC poydevori).
+  //
+  // NIMA UCHUN `auth()` EMAS, `requireAuth()`:
+  // `auth()` faqat token borligini ko'radi. Token esa serverda saqlanmaydi —
+  // parol almashtirilgan yoki hisob bloklangan bo'lsa ham u 8 soat
+  // amal qilaveradi. `requireAuth()` bazadan tekshiradi (isActive,
+  // passwordChangedAt) va o'lik sessiyani darhol /login ga uzatadi.
+  //
+  // Ilgari layout `auth()` ishlatgani uchun bekor qilingan sessiya bilan ham
+  // qobiq bir marta chizilib, foydalanuvchining ismi va roli ko'rinib
+  // qolardi. Endi bunday emas.
+  const user = await requireAuth();
 
   const t = await getTranslations("common");
   const tr = await getTranslations("roles");
-  const { role, name } = session!.user;
+  const { role, name } = user;
 
   return (
     // Ilova qobig'i aynan ekran balandligida qulflanadi — sahifaning o'zi
