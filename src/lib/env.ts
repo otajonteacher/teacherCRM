@@ -76,6 +76,18 @@ const envSchema = z
     AUTH_TRUST_HOST: z.enum(["true", "false"]).optional(),
 
     SEED_PASSWORD: z.string().min(1).optional(),
+
+    /**
+     * `1` — `npm run db:seed` lokal bo'lmagan bazaga ham ishlashiga ruxsat.
+     *
+     * XAVFSIZLIK: seed ma'lum parolli demo ADMIN hisobini yaratadi. Shuning
+     * uchun sukut bo'yicha faqat lokal baza (`localhost`, `127.0.0.1`, ...)
+     * ruxsat etilgan. Masofaviy bazaga seed qilish — ataylab, bilib turib
+     * qo'yiladigan qadam bo'lishi kerak, tasodifiy emas. Tafsiloti
+     * `prisma/seed.ts` da.
+     */
+    SEED_ALLOW_REMOTE: z.enum(["0", "1"]).optional(),
+
     OPENAI_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
@@ -138,6 +150,7 @@ const parsed = envSchema.safeParse({
   AUTH_URL: cleanEnv(process.env.AUTH_URL),
   AUTH_TRUST_HOST: cleanEnv(process.env.AUTH_TRUST_HOST),
   SEED_PASSWORD: cleanEnv(process.env.SEED_PASSWORD),
+  SEED_ALLOW_REMOTE: cleanEnv(process.env.SEED_ALLOW_REMOTE),
   OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY),
   ANTHROPIC_API_KEY: cleanEnv(process.env.ANTHROPIC_API_KEY),
   GOOGLE_GENERATIVE_AI_API_KEY: cleanEnv(

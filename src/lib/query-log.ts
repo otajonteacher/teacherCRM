@@ -99,6 +99,22 @@ export function attachQueryLog(
   client: PrismaClient,
   options: AttachOptions
 ): void {
+  // IKKINCHI QATLAM QULF (fail-closed).
+  //
+  // Hozir chaqiruv joyi (`db.ts`) `NODE_ENV !== "production"` shartini
+  // tekshiradi. Lekin bu shart kelajakda o'zgartirilib yoki tasodifan olib
+  // tashlanib qo'yilsa, ishlab chiqarish logiga SQL matnlari (jadval va ustun
+  // nomlari, `QUERY_LOG_PARAMS=1` bo'lsa qiymatlar ham) tushib ketardi.
+  //
+  // Xavfsizlik qulfi bitta joyga suyanmasligi kerak — shuning uchun vosita
+  // o'zi ham ishlab chiqarishda ishlashdan bosh tortadi.
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[so'rov] log ishlab chiqarishda o'chirilgan — yoqish so'rovi rad etildi."
+    );
+    return;
+  }
+
   const emitter = client as unknown as {
     $on: (
       event: "query",
