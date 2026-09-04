@@ -1,15 +1,89 @@
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { env } from "../src/lib/env";
+import { passwordError } from "../src/lib/password";
 
 const db = new PrismaClient();
 
-async function main() {
+/**
+ * SEED — FAQAT LOKAL BAZA UCHUN (1-to'lqin, xavfsizlik)
+ * ====================================================
+ *
+ * NIMA UCHUN QAT'IY QULF KERAK:
+ * Seed ma'lum parolli demo hisoblarni yaratadi — shu jumladan ADMIN. Agar u
+ * xato bazaga ishlatilsa, tizimda to'liq huquqli orqa eshik paydo bo'ladi.
+ *
+ * Ilgari qulf faqat `NODE_ENV === "production"` edi va bu YETARLI EMAS:
+ * `npm run db:seed` buyrug'ini `tsx` ishga tushiradi va u `NODE_ENV` ni
+ * o'rnatmaydi. Bo'sh qiymat `env.ts` da `"development"` ga tushadi. Ya'ni
+ * `.env` faylida ishlab chiqarish `DATABASE_URL` turgan bo'lsa, qulf ochiq
+ * qolardi va demo ADMIN real bazaga yozilardi.
+ *
+ * Shuning uchun endi ASOSIY mezon — muhit nomi emas, NISHON BAZA:
+ *   1. `NODE_ENV=production` bo'lsa — hech qanday holatda ishlamaydi;
+ *   2. `DATABASE_URL` hosti lokal bo'lmasa — `SEED_ALLOW_REMOTE=1` majburiy
+ *      (ataylab, bilib turib yoziladigan tasdiq);
+ *   3. `SEED_PASSWORD` parol siyosatidan o'tishi shart;
+ *   4. nishon lokal bo'lmasa, demo hisoblar `mustChangePassword: true` bilan
+ *      yaratiladi — birinchi kirishda parol almashtirish majburiy bo'ladi.
+ */
+
+/** Lokal deb hisoblanadigan hostlar. Boshqa hamma narsa "masofaviy". */
+const LOCAL_DB_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+  "host.docker.internal",
+]);
+
+/** `DATABASE_URL` dan host nomini oladi. O'qib bo'lmasa `null`. */
+function databaseHost(url: string): string | null {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "" ? null : hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Seed ishlashiga ruxsat bormi — tekshiradi va nishon lokalligini qaytaradi.
+ * Shubha bo'lsa TO'XTATADI (fail-closed): seed ishlamagani ma'lumot
+ * buzilganidan yaxshi.
+ */
+function assertSafeSeedTarget(): { targetIsLocal: boolean } {
   if (env.NODE_ENV === "production") {
     throw new Error(
-      "Seed productionda ishlamaydi. Demo hisoblar prod'ga tushmasligi kerak."
+      "Seed NODE_ENV=production da ishlamaydi. Demo hisoblar prod'ga tushmasligi kerak."
     );
   }
+
+  const host = databaseHost(env.DATABASE_URL);
+  if (host === null) {
+    throw new Error(
+      "DATABASE_URL dan host o'qib bo'lmadi. Seed to'xtatildi — nishon baza " +
+        "noaniq bo'lsa demo hisob yaratmaymiz."
+    );
+  }
+
+  const targetIsLocal = LOCAL_DB_HOSTS.has(host);
+
+  if (!targetIsLocal && env.SEED_ALLOW_REMOTE !== "1") {
+    throw new Error(
+      `Seed to'xtatildi: DATABASE_URL lokal emas (host: "${host}").\n` +
+        "Seed ma'lum parolli demo ADMIN hisobini yaratadi — bu masofaviy " +
+        "bazada to'liq huquqli orqa eshik degani.\n" +
+        "Agar bu ataylab qilinayotgan bo'lsa (masalan sinov serveri), " +
+        "SEED_ALLOW_REMOTE=1 qo'yib qayta ishga tushiring."
+    );
+  }
+
+  return { targetIsLocal };
+}
+
+async function main() {
+  const { targetIsLocal } = assertSafeSeedTarget();
 
   const seedPassword = env.SEED_PASSWORD;
   if (!seedPassword) {
@@ -18,7 +92,18 @@ async function main() {
     );
   }
 
-  console.log("🌱 Seed boshlandi...");
+  // Demo hisob ham parol siyosatidan o'tishi kerak: "123" kabi parol bilan
+  // yaratilgan hisob keyin esdan chiqib qolsa, bu ochiq teshik bo'lib qoladi.
+  const weak = passwordError(seedPassword);
+  if (weak) {
+    throw new Error(`SEED_PASSWORD parol siyosatiga mos emas: ${weak}`);
+  }
+
+  console.log(
+    `\uD83C\uDF31 Seed boshlandi... (nishon: ${
+      targetIsLocal ? "lokal baza" : "MASOFAVIY baza — SEED_ALLOW_REMOTE=1"
+    })`
+  );
 
   const passwordHash = await bcrypt.hash(seedPassword, 10);
 
@@ -42,26 +127,29 @@ async function main() {
         fullName: u.fullName,
         role: u.role,
         passwordHash,
-        mustChangePassword: false,
+        // Lokal ishlab chiqishda qulaylik uchun parol almashtirish talab
+        // qilinmaydi. Lokal bo'lmagan nishonda esa MAJBURIY — ma'lum parol
+        // bilan uzoq muddat turib qolmasligi uchun.
+        mustChangePassword: !targetIsLocal,
       },
     });
   }
   console.log(
-    `✅ ${users.length} ta foydalanuvchi. Yangi hisob paroli: SEED_PASSWORD. Mavjud hisob paroli o'zgarmaydi.`
+    `\u2705 ${users.length} ta foydalanuvchi. Yangi hisob paroli: SEED_PASSWORD. Mavjud hisob paroli o'zgarmaydi.`
   );
 
   const subjects = [
-    { nameUz: "Matematika", nameRu: "Математика", nameEn: "Mathematics" },
-    { nameUz: "Fizika", nameRu: "Физика", nameEn: "Physics" },
-    { nameUz: "Ona tili", nameRu: "Родной язык", nameEn: "Native language" },
-    { nameUz: "Ingliz tili", nameRu: "Английский язык", nameEn: "English" },
-    { nameUz: "Tarix", nameRu: "История", nameEn: "History" },
+    { nameUz: "Matematika", nameRu: "\u041C\u0430\u0442\u0435\u043C\u0430\u0442\u0438\u043A\u0430", nameEn: "Mathematics" },
+    { nameUz: "Fizika", nameRu: "\u0424\u0438\u0437\u0438\u043A\u0430", nameEn: "Physics" },
+    { nameUz: "Ona tili", nameRu: "\u0420\u043E\u0434\u043D\u043E\u0439 \u044F\u0437\u044B\u043A", nameEn: "Native language" },
+    { nameUz: "Ingliz tili", nameRu: "\u0410\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439 \u044F\u0437\u044B\u043A", nameEn: "English" },
+    { nameUz: "Tarix", nameRu: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F", nameEn: "History" },
   ];
   for (const s of subjects) {
     const exists = await db.subject.findFirst({ where: { nameUz: s.nameUz } });
     if (!exists) await db.subject.create({ data: s });
   }
-  console.log(`✅ ${subjects.length} ta fan yaratildi`);
+  console.log(`\u2705 ${subjects.length} ta fan yaratildi`);
 
   const admin = await db.user.findUnique({ where: { email: "admin@maktab.uz" } });
   const criteria = [
@@ -78,7 +166,7 @@ async function main() {
       });
     }
   }
-  console.log(`✅ ${criteria.length} ta jarima mezoni yaratildi`);
+  console.log(`\u2705 ${criteria.length} ta jarima mezoni yaratildi`);
 
   const yearName = "2025-2026";
   let year = await db.academicYear.findFirst({ where: { name: yearName } });
@@ -107,7 +195,7 @@ async function main() {
         },
       });
     }
-    console.log("✅ O'quv yili va 4 ta chorak yaratildi");
+    console.log("\u2705 O'quv yili va 4 ta chorak yaratildi");
   }
 
   const teacherUser = await db.user.findUnique({
@@ -180,9 +268,9 @@ async function main() {
       });
     }
   }
-  console.log("✅ Demo sinf 9-A va 2 ta o'quvchi yaratildi");
+  console.log("\u2705 Demo sinf 9-A va 2 ta o'quvchi yaratildi");
 
-  console.log("🌱 Seed yakunlandi.");
+  console.log("\uD83C\uDF31 Seed yakunlandi.");
 }
 
 main()
@@ -190,7 +278,7 @@ main()
     await db.$disconnect();
   })
   .catch(async (e) => {
-    console.error("❌ Seed xatosi:", e);
+    console.error("\u274C Seed xatosi:", e);
     await db.$disconnect();
     process.exit(1);
   });
