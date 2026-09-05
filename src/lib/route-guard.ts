@@ -1,6 +1,7 @@
 import type { Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { hasRole } from "@/lib/rbac";
+import { logError } from "@/lib/logger";
 import { consume, ipFromHeaders } from "@/lib/rate-limit-core";
 
 /**
@@ -103,7 +104,18 @@ export function createRouteHandler<TParams extends Record<string, string>>(optio
       return response;
     } catch (error) {
       if (isNextControlFlowError(error)) throw error;
-      console.error("[route-guard] kutilmagan xato", error);
+
+      // DIQQAT: bu yerga xom `error` obyektini BERIB BO'LMAYDI.
+      //
+      // Ilgari shunday edi: console.error("[route-guard] ...", error)
+      // Prisma xato matniga so'rovdagi qiymatlarni (email, hash) va ba'zan
+      // `DATABASE_URL` ni qo'shadi. Prod loglari Vercel/Sentry ga uzatiladi
+      // — ya'ni bazadagi qiymat loyihadan tashqariga chiqib ketardi.
+      //
+      // `logError` prod'da strukturaviy JSON yozadi va `message` ni
+      // `sanitizeErrorMessage` dan o'tkazadi (url/email/hash/telefon).
+      logError("route-guard", error, { path: new URL(request.url).pathname });
+
       return jsonError(500, "Amal bajarilmadi. Qayta urinib ko'ring.");
     }
   };
