@@ -15,16 +15,53 @@
 
 # misc
 .DS_Store
-*.pem
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# ------------------------------------------------------------------
+# MUHIT FAYLLARI (maxfiy)
+#
+# Ilgari bu yerda faqat `.env` va `.env*.local` turardi — Next.js ning
+# standart shabloni. Bu YETARLI EMAS: `.env.production`,
+# `.env.development`, `.env.test` fayllari `.local` qo'shimchasisiz
+# yoziladi va shablonga TUSHMAYDI. Ya'ni ishlab chiqarish bazasining
+# ulanish satri va AUTH_SECRET oddiy `git add .` bilan repoga ketishi
+# mumkin edi. Repo ochiq (public) — bu to'g'ridan-to'g'ri to'liq
+# kirish huquqini berish degani.
+#
+# Endi barcha `.env*` chetlanadi, `.env.example` esa ataylab
+# qaytariladi: u namuna fayl, ichida haqiqiy sir yo'q.
+# ------------------------------------------------------------------
 .env
-.env*.local
+.env.*
+!.env.example
+
+# ------------------------------------------------------------------
+# MAXFIY ARTEFAKTLAR
+#
+# `login-parollar.csv` — o'qituvchi/o'quvchi importidan keyin brauzer
+# yuklaydigan fayl. Ichida yangi hisoblarning BOSHLANG'ICH PAROLLARI
+# ochiq matnda turadi. Agar u loyiha papkasiga saqlansa (Windows'da
+# yuklamalar papkasidan ko'chirish odatiy hol), keyingi `git add .`
+# barcha o'qituvchi parollarini public repoga yuboradi.
+#
+# Nima uchun `*.csv` emas, aniq shablon: chuqurroq papkalardagi test
+# fixture CSV fayllari kelajakda kerak bo'lishi mumkin. Shu sabab
+# faqat parol fayli (istalgan joyda) va ildizdagi CSV lar chetlanadi.
+# ------------------------------------------------------------------
+login-parollar*.csv
+/*.csv
+
+# Kalit va sertifikat fayllari
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+secrets/
 
 # vercel
 .vercel
