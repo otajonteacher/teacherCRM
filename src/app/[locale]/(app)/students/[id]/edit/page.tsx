@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-guard";
+import { redirectNever, requireAdmin } from "@/lib/auth-guard";
 import { classScope } from "@/lib/scope";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +19,9 @@ export default async function EditStudentPage({
     where: { id: params.id },
     include: { guardian: true },
   });
+  // Yo'q id uchun bo'sh sahifa qaytarmaymiz — 403 ga yo'naltiramiz.
   if (!student) {
-    return null;
+    redirectNever("/forbidden");
   }
 
   const classes = await db.class.findMany({
