@@ -44,6 +44,21 @@ if (!isDev) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  /*
+   * `X-Powered-By: Next.js` sarlavhasini o'chiradi.
+   *
+   * Next.js uni sukut bo'yicha HAR BIR javobga qo'shadi. Bu funksional
+   * jihatdan foydasiz, lekin hujumchiga bepul ma'lumot beradi: qaysi
+   * freymvork ishlayotgani. Undan keyin `/_next/static/chunks/...` orqali
+   * versiyani aniqlab, o'sha versiyaga tegishli ma'lum zaifliklar
+   * ro'yxatini sinab ko'rish mumkin.
+   *
+   * Bu "himoya" emas, hujum yuzasini kichraytirish: skanerlash bosqichini
+   * qiyinlashtiradi. Boshqa xavfsizlik sarlavhalari yuqorida.
+   */
+  poweredByHeader: false,
+
   experimental: {
     /*
      * Excel import Server Action orqali fayl yuboradi. Next.js standart
