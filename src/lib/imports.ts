@@ -2,6 +2,17 @@ import { z } from "zod";
 import { Locale, StudentStatus } from "@prisma/client";
 import { MAX_IMPORT_ROWS, normalizeKey } from "./excel";
 import { passwordSchema } from "./password";
+import {
+  BIRTH_DATE_RANGE_MESSAGE,
+  MAX_PHONE_LENGTH,
+  PHONE_DIGITS_MESSAGE,
+  PHONE_LENGTH_MESSAGE,
+  birthDateText,
+  hasEnoughPhoneDigits,
+  isRealDate,
+  isSaneBirthDate,
+  phoneText,
+} from "./students";
 
 /**
  * IMPORT BIZNES-QOIDALARI
@@ -10,9 +21,16 @@ import { passwordSchema } from "./password";
  * commit (yozish) uchun sxemalar. Bu modul bazaga murojaat qilmaydi —
  * sinf/fan izlash va dublikat tekshiruvi action'larda bajariladi.
  *
- * Muhim: qo'lda qo'shish va import BIR XIL qoidaga tayanadi — shu sababli
- * yakuniy yozishdan oldin `studentWriteSchema` / `teacherWriteSchema` ham
- * ishlatiladi (action'lardagi commit qadamiga qarang).
+ * QOIDA MANBASI — DIQQAT (H5a da tuzatildi)
+ * -----------------------------------------
+ * Ilgari shu yerda "yakuniy yozishdan oldin `studentWriteSchema` /
+ * `teacherWriteSchema` ham ishlatiladi" deb yozilgan edi. Bu NOTO'G'RI:
+ * `students/import/actions.ts` commit qadamida `studentWriteSchema` ni
+ * ishlatmaydi — faqat quyidagi `studentCommitRowSchema` ni ishlatadi.
+ * Shuning uchun forma bilan tenglik SHU FAYLDA ta'minlanadi: sana va
+ * telefon qoidalari `students.ts` dan import qilinadi (`birthDateText`,
+ * `phoneText`) va ikki qatlamda — qatorni o'qishda (`mapStudentRow`) ham,
+ * commit sxemasida ham — qo'llanadi.
  */
 
 export type ImportMode = "skip" | "update";
@@ -73,12 +91,6 @@ export function normalizeDate(value: string): string | null {
   return null;
 }
 
-function isRealDate(iso: string): boolean {
-  const date = new Date(`${iso}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return false;
-  return date.toISOString().slice(0, 10) === iso;
-}
-
 /** Telefonni bir ko'rinishga keltiradi: faqat raqam va boshdagi "+". */
 export function normalizePhone(value: string): string {
   const text = value.trim();
@@ -90,6 +102,24 @@ export function normalizePhone(value: string): string {
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/**
+ * Telefon ustuni uchun umumiy tekshiruv (o'quvchi vasiysi va o'qituvchi).
+ *
+ * Qoida `students.ts` dagi `phoneText` bilan bir xil bo'lishi shart —
+ * shuning uchun uzunlik chegarasi va xato matnlari ham shu fayldan olinadi.
+ */
+function phoneErrors(label: string, phone: string): string[] {
+  if (phone === "") return [];
+  const found: string[] = [];
+  if (phone.length > MAX_PHONE_LENGTH) {
+    found.push(`${label}: ${PHONE_LENGTH_MESSAGE}`);
+  }
+  if (!hasEnoughPhoneDigits(phone)) {
+    found.push(`${label}: ${PHONE_DIGITS_MESSAGE} Kiritilgan: "${phone}".`);
+  }
+  return found;
 }
 
 function matchOption(value: string, options: Record<string, string[]>): string | null {
@@ -172,12 +202,22 @@ export function mapStudentRow(values: Record<string, string>): MappedRow<Student
   if (lastName.length > 80) errors.push("Familiya juda uzun (80 belgidan ko'p).");
   if (firstName.length > 80) errors.push("Ism juda uzun (80 belgidan ko'p).");
 
+  /**
+   * Sana: format + kalendarda mavjudligi + MANTIQIY oraliq.
+   *
+   * TUZATILDI (H5a): ilgari faqat format va kalendar tekshirilardi, ya'ni
+   * "3026-05-01" yoki "1723-01-01" import orqali bazaga tushib ketardi
+   * (forma esa bunday sanani rad etadi). Endi oraliq ham tekshiriladi va
+   * xato matni forma bilan bir xil manbadan olinadi.
+   */
   let dateOfBirth: string | undefined;
   const rawDate = get("dateOfBirth");
   if (rawDate !== "") {
     const iso = normalizeDate(rawDate);
     if (!iso || !isRealDate(iso)) {
       errors.push(`Tug'ilgan sana formati noto'g'ri: "${rawDate}" (YYYY-MM-DD yoki KK.OO.YYYY).`);
+    } else if (!isSaneBirthDate(iso)) {
+      errors.push(`${BIRTH_DATE_RANGE_MESSAGE} Kiritilgan: "${rawDate}".`);
     } else {
       dateOfBirth = iso;
     }
@@ -211,6 +251,17 @@ export function mapStudentRow(values: Record<string, string>): MappedRow<Student
   const guardianPhone = normalizePhone(get("guardianPhone"));
   const guardianRelation = get("guardianRelation");
 
+  /**
+   * Vasiy telefoni: endi FORMA bilan bir xil qoida.
+   *
+   * TUZATILDI (H5a): ilgari bu maydon hech qanday tekshiruvdan o'tmasdi —
+   * faqat `slice(0, 200)` qilinardi. Ya'ni "aaa" yoki "12" kabi qiymat
+   * bazaga tushib, keyin davomat SMS navbati (`absence-notice.ts`) mavjud
+   * bo'lmagan raqamga yuborishga urinardi. Forma esa kamida 7 raqam va
+   * ko'pi bilan 30 belgi talab qiladi.
+   */
+  errors.push(...phoneErrors("Vasiy telefoni", guardianPhone));
+
   if (guardianName !== "" && guardianPhone === "") {
     warnings.push("Vasiy telefoni yo'q — vasiy yozuvi yaratilmaydi.");
   }
@@ -230,7 +281,7 @@ export function mapStudentRow(values: Record<string, string>): MappedRow<Student
       className: className === "" ? undefined : className,
       status,
       guardianName: guardianName === "" ? undefined : guardianName.slice(0, 200),
-      guardianPhone: guardianPhone === "" ? undefined : guardianPhone.slice(0, 200),
+      guardianPhone: guardianPhone === "" ? undefined : guardianPhone,
       guardianRelation: guardianRelation === "" ? undefined : guardianRelation.slice(0, 200),
     },
     errors,
@@ -305,9 +356,14 @@ export function mapTeacherRow(values: Record<string, string>): MappedRow<Teacher
   if (email !== "" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     errors.push(`Email formati noto'g'ri: "${email}".`);
   }
-  if (phone !== "" && phone.replace(/[^\d]/g, "").length < 7) {
-    errors.push(`Telefon raqami juda qisqa: "${phone}".`);
-  }
+  /**
+   * Telefon: qoida `students.ts` dagi bilan bir xil manbadan.
+   *
+   * Ilgari faqat "7 raqamdan qisqa" tekshirilardi, uzunlik esa faqat
+   * `teacherCommitRowSchema` da (max 30) tekshirilardi — ya'ni preview
+   * "tayyor" deb ko'rsatib, commit qadamida qator jimgina yiqilardi.
+   */
+  errors.push(...phoneErrors("Telefon", phone));
 
   const subjectNames = get("subjects")
     .split(/[,;\n]/)
@@ -496,13 +552,21 @@ const studentCommitRowSchema = z.object({
   rowNumber: z.number().int().nonnegative(),
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),
-  dateOfBirth: z.string().optional(),
+  /**
+   * TUZATILDI (H5a): ilgari `z.string().optional()` edi — naqsh ham, uzunlik
+   * ham tekshirilmasdi. Ya'ni klientdan qo'lda yasalgan so'rov bilan
+   * "salom" yoki "3026-01-01" yuborilsa, sxema o'tkazib yuborardi va
+   * `toDate()` jimgina `undefined` qaytarib, sana YO'QOLARDI (xato ham
+   * ko'rsatilmasdi). Endi forma bilan bir xil sxema ishlatiladi.
+   */
+  dateOfBirth: birthDateText.optional(),
   gender: z.enum(["male", "female"]).optional(),
   address: z.string().max(200).optional(),
   className: z.string().max(200).optional(),
   status: z.nativeEnum(StudentStatus),
   guardianName: z.string().max(200).optional(),
-  guardianPhone: z.string().max(200).optional(),
+  /** TUZATILDI (H5a): ilgari `max(200)` edi — raqam borligi tekshirilmasdi. */
+  guardianPhone: phoneText.optional(),
   guardianRelation: z.string().max(200).optional(),
   existingId: z.string().min(1).nullable().optional(),
 });
@@ -517,7 +581,8 @@ const teacherCommitRowSchema = z.object({
   rowNumber: z.number().int().nonnegative(),
   fullName: z.string().min(1).max(120),
   email: z.string().max(190).optional(),
-  phone: z.string().max(30).optional(),
+  /** Qoida `students.ts` dagi `phoneText` bilan bir xil (max 30 + 7 raqam). */
+  phone: phoneText.optional(),
   subjectNames: z.array(z.string().max(120)).max(30),
   locale: z.nativeEnum(Locale),
   isActive: z.boolean(),
