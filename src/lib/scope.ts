@@ -121,6 +121,41 @@ export function classScope(user: SessionUser): Prisma.ClassWhereInput {
 }
 
 /**
+ * O'QITUVCHILAR doirasi (H4g).
+ *
+ * NEGA KERAK BO'LDI: `teachers/actions.ts` da o'qituvchi yozuvi yolg'iz
+ * `findUnique({ where: { id } })` bilan o'qilardi — ya'ni OLTIN QOIDA
+ * shu modulda bajarilmasdi. Amal ADMIN uchun yopiq bo'lgani uchun bu
+ * hozircha ochiq teshik EMAS, lekin qoidadan chetga chiqish har doim
+ * kelgusi teshikning urug'i: rol ro'yxatiga bir kun TEACHER qo'shilsa,
+ * himoya jimgina yo'qolardi va hech kim sezmasdi.
+ *
+ * Doira:
+ * - ADMIN — hammasi (egasining qat'iy talabi).
+ * - TEACHER — FAQAT O'Z yozuvi. Boshqa o'qituvchining profili begona
+ *   ma'lumot: email, telefon, faol/nofaol holati. Bu "sizib chiqadigan
+ *   ma'lumot" toifasiga kiradi, shuning uchun o'zidan boshqasi yopiq.
+ * - ACCOUNTANT va PARENT — `MATCH_NOTHING` (fail-closed). Buxgalter
+ *   o'quvchi/to'lov ma'lumotini ko'radi, xodim kartochkasini emas;
+ *   ota-onaga esa bu umuman tegishli emas.
+ *
+ * DIQQAT: bu doira `Teacher` MODELI uchun. "Qaysi darslar meniki?" savoli
+ * bu yerda emas — u `lessonScope` / `gradingLessonScope` mas'uliyatida.
+ */
+export function teacherScope(user: SessionUser): Prisma.TeacherWhereInput {
+  switch (user.role) {
+    case "ADMIN":
+      return {};
+
+    case "TEACHER":
+      return { userId: requireUserId(user) };
+
+    default:
+      return MATCH_NOTHING;
+  }
+}
+
+/**
  * Darslar doirasi (KO'RISH va DAVOMAT uchun).
  *
  * 5-bosqich tuzatishi: sinf rahbari ham o'z sinfining BARCHA darslariga
@@ -384,6 +419,33 @@ export async function assertCanAccessClass(
   });
   return (
     await assertExists(row, { user, entity: "Class", requestedId: classId })
+  ).id;
+}
+
+/**
+ * O'qituvchi yozuviga kirish huquqini tekshiradi (H4g).
+ *
+ * `teacherScope` ga tayanadi: ADMIN hammasini, o'qituvchi faqat o'zini
+ * ko'radi, buxgalter va ota-ona esa hech kimni.
+ *
+ * Boshqa `assertCanAccess*` lar bilan bir xil: rad etilganda avval
+ * `PERMISSION_DENIED` (`reason: "scope"`) yoziladi, keyin `/forbidden`.
+ * "Topilmadi" va "ruxsat yo'q" javobi ataylab bir xil.
+ */
+export async function assertCanAccessTeacher(
+  user: SessionUser,
+  teacherId: string
+): Promise<string> {
+  const row = await db.teacher.findFirst({
+    where: { AND: [{ id: teacherId }, teacherScope(user)] },
+    select: { id: true },
+  });
+  return (
+    await assertExists(row, {
+      user,
+      entity: "Teacher",
+      requestedId: teacherId,
+    })
   ).id;
 }
 

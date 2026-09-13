@@ -6,6 +6,7 @@ import { createAction, formDataToObject } from "@/lib/safe-action";
 import { studentUpdateSchema, studentWriteSchema } from "@/lib/students";
 import { loadValidClassIds } from "@/lib/import-commit-guards";
 import { redirectNever } from "@/lib/auth-guard";
+import { assertCanAccessStudent, studentScope } from "@/lib/scope";
 
 export type StudentFormState = { error?: string };
 
@@ -100,12 +101,42 @@ const createStudentAction = createAction({
 const updateStudentAction = createAction({
   roles: ["ADMIN"],
   schema: studentUpdateSchema,
-  handler: async (input): Promise<{ id: string }> => {
-    const existing = await db.student.findUnique({
-      where: { id: input.id },
+  handler: async (input, user): Promise<{ id: string }> => {
+    /**
+     * DOIRA BILAN O'QISH (H4g).
+     *
+     * NIMA EDI: `db.student.findUnique({ where: { id: input.id } })` —
+     * ya'ni `scope.ts` da yozilgan OLTIN QOIDA ("hech qachon yolg'iz
+     * findUnique") shu yerda amalda buzilgan edi.
+     *
+     * NEGA XAVFLI: hozir amal faqat ADMIN uchun ochiq va ADMIN doirasi
+     * bo'sh (`{}`), demak bu HOZIR sizib chiqadigan teshik EMAS — buni
+     * bo'rttirib ko'rsatmayman. Lekin xavf kelajakda: `roles` ro'yxatiga
+     * bir kun TEACHER qo'shilsa (masalan o'qituvchi o'z sinfidagi
+     * o'quvchining telefonini to'g'rilashi kerak bo'lsa), himoya
+     * JIMGINA yo'qolardi — kodda hech narsa o'zgarmagani uchun hech kim
+     * sezmasdi. Xavfsizlik qoidasi "hozir ishlayapti" ga emas,
+     * tuzilishga tayanishi kerak.
+     *
+     * ENDI: doira shartda turadi. ADMIN uchun natija bir xil, boshqa rol
+     * qo'shilsa ruxsat avtomatik toraydi (fail-closed).
+     */
+    const existing = await db.student.findFirst({
+      where: { AND: [{ id: input.id }, studentScope(user)] },
       select: { id: true, guardianId: true },
     });
+
     if (!existing) {
+      /**
+       * Yozuv yo'q YOKI doiradan tashqarida — ikkisi bir xil javob beradi
+       * (enumeration himoyasi). Lekin urinish iz qoldirishi kerak:
+       * `assertCanAccessStudent` `PERMISSION_DENIED` (`reason: "scope"`)
+       * yozib, keyin `/forbidden` ga yo'naltiradi.
+       *
+       * Ikkinchi so'rov faqat SHU yo'lda bajariladi — normal ishlashda
+       * qo'shimcha yuklama yo'q.
+       */
+      await assertCanAccessStudent(user, input.id);
       redirectNever("/forbidden");
     }
 
