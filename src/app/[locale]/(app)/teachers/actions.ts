@@ -7,6 +7,7 @@ import { createAction, formDataToObject } from "@/lib/safe-action";
 import { teacherUpdateSchema, teacherWriteSchema } from "@/lib/teachers";
 import { loadValidSubjectIds } from "@/lib/import-commit-guards";
 import { redirectNever } from "@/lib/auth-guard";
+import { assertCanAccessTeacher, teacherScope } from "@/lib/scope";
 
 /**
  * O'QITUVCHILAR — SERVER ACTION'LAR
@@ -88,12 +89,31 @@ const createTeacherAction = createAction({
 const updateTeacherAction = createAction({
   roles: ["ADMIN"],
   schema: teacherUpdateSchema,
-  handler: async (input): Promise<{ id: string }> => {
-    const existing = await db.teacher.findUnique({
-      where: { id: input.id },
+  handler: async (input, user): Promise<{ id: string }> => {
+    /**
+     * DOIRA BILAN O'QISH (H4g).
+     *
+     * NIMA EDI: yolg'iz `findUnique({ where: { id: input.id } })`.
+     * Bu yerda xavf o'quvchi modulidagidan yuqoriroq, chunki so'rov
+     * `userId` ni ham oladi va keyin AYNAN SHU `userId` bo'yicha `User`
+     * jadvali yangilanadi (`fullName`, `email`, `phone`, `isActive`).
+     * Ya'ni doira yo'q holatda "qaysi o'qituvchi yozuvi" degan qaror
+     * to'liq klientdan kelgan ID ga tayanadi.
+     *
+     * HOZIRGI HOLAT HALOL BAHOLANSA: amal faqat ADMIN uchun ochiq,
+     * ADMIN doirasi bo'sh — demak bugungi kunda ochiq teshik emas.
+     * Lekin bu himoya tuzilishdan emas, `roles` ro'yxatidagi bitta
+     * qatordan kelib chiqadi. Endi ikkinchi qatlam ham bor.
+     */
+    const existing = await db.teacher.findFirst({
+      where: { AND: [{ id: input.id }, teacherScope(user)] },
       select: { id: true, userId: true },
     });
+
     if (!existing) {
+      // Rad etish AuditLog ga tushadi (`PERMISSION_DENIED`, reason "scope"),
+      // keyin `/forbidden`. Javob "topilmadi" bilan bir xil.
+      await assertCanAccessTeacher(user, input.id);
       redirectNever("/forbidden");
     }
 

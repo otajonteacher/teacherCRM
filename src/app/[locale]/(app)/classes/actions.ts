@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createAction, formDataToObject } from "@/lib/safe-action";
 import { redirectNever } from "@/lib/auth-guard";
+import { classScope } from "@/lib/scope";
 import { idOnlySchema, type SaveResult } from "@/lib/academics";
 import {
   classStudentSchema,
@@ -26,6 +27,25 @@ const DUPLICATE_MESSAGE =
  */
 const AUDIT_ID_LIMIT = 50;
 
+/**
+ * O'QUV YILI — NEGA BU YERDA DOIRA YO'Q (H4g izohi)
+ * =================================================
+ *
+ * Pastdagi `db.academicYear.findUnique(...)` chaqiruvlari ataylab
+ * doirasiz qoldirildi va bu "e'tibordan chetda qolgan joy" emas:
+ *
+ * - `AcademicYear` — butun maktabga umumiy ma'lumotnoma (2025-2026 kabi).
+ *   U hech qaysi foydalanuvchiga TEGISHLI emas, shuning uchun
+ *   `scope.ts` da unga doira funksiyasi ham yo'q.
+ * - Bu so'rov faqat MAVJUDLIKNI tekshiradi (`select: { id: true }`) va
+ *   hech qanday maxfiy maydon o'qimaydi — sizib chiqadigan ma'lumot yo'q.
+ * - Amallar `roles: ["ADMIN"]` bilan yopiq.
+ *
+ * Agar kelajakda o'quv yili filiallar/bo'limlar bo'yicha ajratilsa,
+ * `academicYearScope` yozilishi va shu ikki joy birinchi navbatda
+ * yangilanishi kerak.
+ */
+
 function revalidateClasses(classId?: string) {
   revalidatePath("/classes");
   revalidatePath("/students");
@@ -41,6 +61,7 @@ const createClassAction = createAction({
     // Begona yoki o'chirilgan id kelib qolmasligi uchun mavjudligini
     // yozishdan oldin tekshiramiz: aks holda baza xatosi (P2003) ko'rinar,
     // foydalanuvchi esa nima bo'lganini tushunmasdi.
+    // Doira yo'qligi sababi — yuqoridagi "O'QUV YILI" izohida.
     const year = await db.academicYear.findUnique({
       where: { id: input.academicYearId },
       select: { id: true },
@@ -81,13 +102,33 @@ const createClassAction = createAction({
 const updateClassAction = createAction({
   roles: ["ADMIN"],
   schema: classUpdateSchema,
-  handler: async (input): Promise<SaveResult> => {
+  handler: async (input, user): Promise<SaveResult> => {
     const year = await db.academicYear.findUnique({
       where: { id: input.academicYearId },
       select: { id: true },
     });
     if (!year) {
       return { ok: false, message: "O'quv yili topilmadi. Sahifani yangilang." };
+    }
+
+    /**
+     * DOIRA BILAN TEKSHIRISH (H4g).
+     *
+     * Ilgari bu amal sinf mavjudligini UMUMAN tekshirmasdi — to'g'ridan
+     * `db.class.update({ where: { id: input.id } })` qilardi. Ya'ni:
+     *   1) doira yo'q edi (oltin qoida buzilgan),
+     *   2) sinf topilmasa Prisma P2025 tashlar, u umumiy "Yozuv topilmadi"
+     *      xabariga aylanar, LEKIN audit yozuvi UPDATE sifatida
+     *      ketardi — jurnalda muvaffaqiyatli o'zgarishdan farq qilmasdi.
+     *
+     * Endi sinf doira bilan o'qiladi va topilmasa aniq xabar qaytadi.
+     */
+    const target = await db.class.findFirst({
+      where: { AND: [{ id: input.id }, classScope(user)] },
+      select: { id: true },
+    });
+    if (!target) {
+      return { ok: false, message: "Sinf topilmadi. Sahifani yangilang." };
     }
 
     const duplicate = await db.class.findFirst({
@@ -101,7 +142,7 @@ const updateClassAction = createAction({
     if (duplicate) return { ok: false, message: DUPLICATE_MESSAGE };
 
     await db.class.update({
-      where: { id: input.id },
+      where: { id: target.id },
       data: {
         name: input.name,
         grade: input.grade,
@@ -109,8 +150,8 @@ const updateClassAction = createAction({
         homeroomTeacherId: input.homeroomTeacherId ?? null,
       },
     });
-    revalidateClasses(input.id);
-    return { ok: true, id: input.id };
+    revalidateClasses(target.id);
+    return { ok: true, id: target.id };
   },
   audit: {
     action: "UPDATE",
@@ -122,19 +163,27 @@ const updateClassAction = createAction({
 const deleteClassAction = createAction({
   roles: ["ADMIN"],
   schema: idOnlySchema,
-  handler: async (input): Promise<{ deleted: boolean }> => {
+  handler: async (input, user): Promise<{ deleted: boolean }> => {
     // Sinf o'chirilsa darslari ham o'chadi (Cascade), davomat esa darsga
     // bog'langan. Shuning uchun bo'sh bo'lmagan sinf o'chirilmaydi.
-    const target = await db.class.findUnique({
-      where: { id: input.id },
-      select: { _count: { select: { students: true, lessons: true } } },
+    //
+    // H4g: doira shartga qo'shildi. `deleted: false` javobi ataylab
+    // saqlangan — "yo'q" va "ruxsat yo'q" bir xil ko'rinadi (enumeration
+    // himoyasi), natija esa DELETE audit yozuvida `deleted: false` bo'lib
+    // qoladi, ya'ni urinish baribir izsiz ketmaydi.
+    const target = await db.class.findFirst({
+      where: { AND: [{ id: input.id }, classScope(user)] },
+      select: {
+        id: true,
+        _count: { select: { students: true, lessons: true } },
+      },
     });
     if (!target) return { deleted: false };
     if (target._count.students > 0 || target._count.lessons > 0) {
       return { deleted: false };
     }
 
-    await db.class.delete({ where: { id: input.id } });
+    await db.class.delete({ where: { id: target.id } });
     revalidateClasses();
     return { deleted: true };
   },
@@ -200,7 +249,7 @@ type AssignOutcome = {
 const assignStudentsAction = createAction({
   roles: ["ADMIN"],
   schema: classStudentsSchema,
-  handler: async (input): Promise<AssignOutcome> => {
+  handler: async (input, user): Promise<AssignOutcome> => {
     const empty: AssignOutcome = {
       moved: 0,
       blocked: 0,
@@ -209,8 +258,9 @@ const assignStudentsAction = createAction({
       raced: 0,
     };
 
-    const target = await db.class.findUnique({
-      where: { id: input.classId },
+    // H4g: sinf doira bilan o'qiladi.
+    const target = await db.class.findFirst({
+      where: { AND: [{ id: input.classId }, classScope(user)] },
       select: { id: true },
     });
     if (!target) {
@@ -313,7 +363,7 @@ type MoveOutcome = {
 const moveStudentsAction = createAction({
   roles: ["ADMIN"],
   schema: classStudentsSchema,
-  handler: async (input): Promise<MoveOutcome> => {
+  handler: async (input, user): Promise<MoveOutcome> => {
     const empty: MoveOutcome = {
       moved: 0,
       skippedUnassigned: 0,
@@ -323,8 +373,9 @@ const moveStudentsAction = createAction({
       moves: [],
     };
 
-    const target = await db.class.findUnique({
-      where: { id: input.classId },
+    // H4g: sinf doira bilan o'qiladi.
+    const target = await db.class.findFirst({
+      where: { AND: [{ id: input.classId }, classScope(user)] },
       select: { id: true },
     });
     if (!target) {
@@ -401,11 +452,21 @@ const moveStudentsAction = createAction({
 const removeStudentAction = createAction({
   roles: ["ADMIN"],
   schema: classStudentSchema,
-  handler: async (input): Promise<{ removed: boolean }> => {
-    // Bu yerda doira allaqachon to'g'ri: `classId` shartda turgani uchun
-    // boshqa sinfning o'quvchisini chiqarib yuborish mumkin emas.
+  handler: async (input, user): Promise<{ removed: boolean }> => {
+    /**
+     * Bu yerda doira allaqachon to'g'ri: `classId` shartda turgani uchun
+     * boshqa sinfning o'quvchisini chiqarib yuborish mumkin emas.
+     *
+     * H4g: shunga qaramay FOYDALANUVCHI doirasi ham qo'shildi. Sabab —
+     * eski shart faqat "o'quvchi shu sinfdami?" degan savolga javob
+     * berardi, "bu sinf menga ko'rinadimi?" degan savolga emas.
+     */
     const result = await db.student.updateMany({
-      where: { id: input.studentId, classId: input.classId },
+      where: {
+        id: input.studentId,
+        classId: input.classId,
+        class: classScope(user),
+      },
       data: { classId: null },
     });
     revalidateClasses(input.classId);
