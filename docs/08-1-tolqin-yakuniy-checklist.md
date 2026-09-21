@@ -14,7 +14,7 @@
 | Integratsiya commit'i | `524d1762db0a348b05a50ce9421dc372db15a58d` |
 | So'nggi integratsiya | PR #108 — `grades.ts` dagi o'lik kodni olib tashlash |
 | Checklist branch | `claude/wave-1-final-checklist` |
-| Ochiq pull request | 0 ta |
+| Checklist PR | **#109 ochiq** |
 | Rasmiy holat | **Kod ishlari deyarli tugagan; yakuniy darvoza hali yopilmagan** |
 
 ## 2. Hozirgacha yopilgan katta qismlar
@@ -26,7 +26,7 @@ Quyidagi ishlar integratsiya branchida mavjud va qayta bajarilmaydi:
 - [x] F3 bahoni darsga majburiy bog'lash va `Grade.lessonId` NULL teshigini yopish: PR #87.
 - [x] G1–G4b: parol siyosati, import preview himoyasi, jim xatolar, doimiy rate limit: PR #88–#95.
 - [x] H2–H5: menyu, sinf ko'chirish, rad etish auditi, scope, import parity va o'lik kod: PR #97–#108.
-- [x] Ochiq PR yo'q; yangi ishlar endi yakuniy audit yoki aniq task branchida boshlanadi.
+- [ ] Checklist PR #109 integratsiya branchiga merge qilindi.
 
 > Eski `docs/01`, `docs/03`, `docs/05`, `docs/07` hujjatlarining ayrim qismlari PR #86–#108 dan ortda qolgan. Ularning “PR F qoldi” degan yozuvlari to'liq joriy holat emas.
 
@@ -67,8 +67,9 @@ Quyidagi ishlar integratsiya branchida mavjud va qayta bajarilmaydi:
 
 ### 5.1. Parol va seed
 
-- [ ] Amaldagi parol siyosati **8 belgi** ekanligi kod va hujjatlarda bir xil ko'rsatilgan.
-- [ ] `SEED_PASSWORD` ham amaldagi `passwordSchema` orqali tekshirilishi bo'yicha qaror/PR qilindi.
+- [x] Amaldagi parol siyosati **8 belgi** ekanligi `src/lib/password.ts`da ko'rsatilgan.
+- [x] `prisma/seed.ts` `passwordError(seedPassword)` orqali `SEED_PASSWORD`ni shu siyosat bilan tekshiradi.
+- [ ] Seed tekshiruvining regression testi va hujjatdagi holati yakuniy test darvozasida tasdiqlanadi.
 - [ ] Eski, amaldagi siyosatdan qisqa parollarni `mustChangePassword` bilan majburiy almashtirish kerak yoki kerak emasligi hal qilindi.
 - [ ] Import parollari va `mustChangePassword` oqimi qayta tekshirildi.
 
@@ -158,7 +159,10 @@ Faqat yuqoridagi darvoza yopilgandan keyin:
 
 ## 10. Hozirgi birinchi ish
 
-1. Ushbu checklistni integratsiya branchiga PR qilish.
+1. Checklist PR #109ni integratsiya branchiga merge qilish.
 2. Read-only baza auditini o'tkazish: F2/F3 natijalari va `NOT VALID` constraintlar.
-3. Seed password, secret scanning va hujjat sync bo'yicha qarorlar ro'yxatini yopish.
-4. Shundan keyin yakuniy test/build darvozasini bajarish.
+3. Secret scanning va hujjat sync bo'yicha qarorlarni yopish.
+4. Seed password kodi allaqachon tekshirilgani sababli alohida seed PR ochmaslik; faqat regression test/build darvozasida tasdiqlash.
+5. Shundan keyin yakuniy test/build darvozasini bajarish.
+
+> GitHub ulanishi repository va migration fayllarini ko'rsatadi, lekin real PostgreSQL bazaga read-only ulanish bermaydi. Shuning uchun 3-bo'limdagi `SELECT`lar lokal/staging bazada bajarilib, natijasi closeout PRga qo'shiladi.
