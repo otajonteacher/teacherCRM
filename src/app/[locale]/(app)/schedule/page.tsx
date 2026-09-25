@@ -241,6 +241,7 @@ export default async function SchedulePage({
                                   {canWrite ? (
                                     <div className="mt-1 flex items-center gap-2 text-xs">
                                       <Link
+                                        prefetch={false}
                                         href={`${hrefWith({
                                           edit: lesson.id,
                                         })}#lesson-form`}
@@ -270,6 +271,7 @@ export default async function SchedulePage({
                                   dars vaqti formada avtomatik tanlangan bo'ladi. */}
                               {canWrite && subjectOptions.length > 0 ? (
                                 <Link
+                                  prefetch={false}
                                   href={`${hrefWith({
                                     day: String(day),
                                     period: period.id,
