@@ -3,6 +3,7 @@ import createIntlMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
 import { locales, defaultLocale } from "./i18n/config";
+import { homePathForUser } from "./lib/home-redirect";
 import { isPathAllowed } from "./lib/rbac";
 import { consume, ipFromHeaders } from "./lib/rate-limit-core";
 
@@ -124,6 +125,36 @@ export default auth((req) => {
   }
 
   const { locale, pathWithoutLocale } = splitLocale(pathname);
+  const sessionUser = req.auth?.user;
+  const hasExplicitLocale = locales.some(
+    (candidate) =>
+      pathname === `/${candidate}` || pathname.startsWith(`/${candidate}/`)
+  );
+
+  /**
+   * Locale ildizidan dashboardga to'g'ridan-to'g'ri o'tamiz.
+   *
+   * `/uz` sahifasi ilgari server komponent orqali yana `/uz/dashboard` ga
+   * redirect qilardi. Bu esa authenticated foydalanuvchida ortiqcha bitta
+   * redirect va route render hosil qilardi. Sessiyasiz `/uz` uchun esa
+   * login'ga bevosita o'tamiz. Oddiy `/` so'rovini next-intl'ga qoldiramiz,
+   * chunki u locale cookie/til muzokarasini o'zi hal qiladi.
+   */
+  if (pathWithoutLocale === "/" && (hasExplicitLocale || sessionUser)) {
+    const sessionLocale =
+      sessionUser &&
+      locales.includes(sessionUser.locale as (typeof locales)[number])
+        ? (sessionUser.locale as (typeof locales)[number])
+        : defaultLocale;
+    const targetLocale = hasExplicitLocale ? locale : sessionLocale;
+    const targetPath = sessionUser
+      ? homePathForUser(sessionUser)
+      : "/login";
+
+    return NextResponse.redirect(
+      new URL(`/${targetLocale}${targetPath}`, req.url)
+    );
+  }
 
   const isLogin = pathWithoutLocale.startsWith("/login");
   const isForbidden = pathWithoutLocale.startsWith("/forbidden");
