@@ -11,6 +11,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  clampPage,
+  PAGE_SIZES,
+  pageCount,
+  parsePageSize,
+  parsePositivePage,
+} from "@/lib/pagination";
+import { TeacherPageSizeSelect } from "./page-size-select";
 
 /**
  * O'qituvchilar ro'yxati — faqat ADMIN (rbac.ts: /teachers faqat ADMIN da).
@@ -19,11 +27,20 @@ import {
 export default async function TeachersPage({
   searchParams,
 }: {
-  searchParams: { q?: string; subjectId?: string; active?: string };
+  searchParams: {
+    q?: string;
+    subjectId?: string;
+    active?: string;
+    page?: string;
+    pageSize?: string;
+  };
 }) {
   await requireAdmin();
-  const t = await getTranslations("teachers");
-  const tImport = await getTranslations("import");
+  const [t, tImport, tp] = await Promise.all([
+    getTranslations("teachers"),
+    getTranslations("import"),
+    getTranslations("pagination"),
+  ]);
 
   const q = searchParams.q?.trim() ?? "";
   const subjectId = searchParams.subjectId?.trim() || undefined;
@@ -33,30 +50,40 @@ export default async function TeachersPage({
       : searchParams.active === "no"
         ? false
         : undefined;
+  const activeParam = active === undefined ? undefined : active ? "yes" : "no";
+  const pageSize = parsePageSize(searchParams.pageSize);
 
-  const subjects = await db.subject.findMany({
-    select: { id: true, nameUz: true },
-    orderBy: { nameUz: "asc" },
-  });
+  const teacherWhere = {
+    AND: [
+      q
+        ? {
+            user: {
+              OR: [
+                { fullName: { contains: q, mode: "insensitive" as const } },
+                { email: { contains: q, mode: "insensitive" as const } },
+                { phone: { contains: q, mode: "insensitive" as const } },
+              ],
+            },
+          }
+        : {},
+      subjectId ? { subjects: { some: { id: subjectId } } } : {},
+      active === undefined ? {} : { user: { isActive: active } },
+    ],
+  };
+
+  const [subjects, totalTeachers] = await Promise.all([
+    db.subject.findMany({
+      select: { id: true, nameUz: true },
+      orderBy: { nameUz: "asc" },
+    }),
+    db.teacher.count({ where: teacherWhere }),
+  ]);
+
+  const totalPages = pageCount(totalTeachers, pageSize);
+  const page = clampPage(parsePositivePage(searchParams.page), totalPages);
 
   const teachers = await db.teacher.findMany({
-    where: {
-      AND: [
-        q
-          ? {
-              user: {
-                OR: [
-                  { fullName: { contains: q, mode: "insensitive" } },
-                  { email: { contains: q, mode: "insensitive" } },
-                  { phone: { contains: q, mode: "insensitive" } },
-                ],
-              },
-            }
-          : {},
-        subjectId ? { subjects: { some: { id: subjectId } } } : {},
-        active === undefined ? {} : { user: { isActive: active } },
-      ],
-    },
+    where: teacherWhere,
     include: {
       user: {
         select: { fullName: true, email: true, phone: true, isActive: true },
@@ -65,8 +92,24 @@ export default async function TeachersPage({
       homeroomClasses: { select: { id: true, name: true } },
     },
     orderBy: { user: { fullName: "asc" } },
-    take: 100,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
+
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (subjectId) params.set("subjectId", subjectId);
+    if (activeParam) params.set("active", activeParam);
+    params.set("page", String(targetPage));
+    params.set("pageSize", String(pageSize));
+    return `/teachers?${params.toString()}`;
+  };
+
+  const pageSizeOptions = PAGE_SIZES.map((size) => ({
+    value: size,
+    label: tp("items", { count: size }),
+  }));
 
   return (
     <div className="space-y-6">
@@ -107,7 +150,7 @@ export default async function TeachersPage({
             </select>
             <select
               name="active"
-              defaultValue={searchParams.active ?? ""}
+              defaultValue={activeParam ?? ""}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">{t("statusAll")}</option>
@@ -183,6 +226,40 @@ export default async function TeachersPage({
           )}
         </CardContent>
       </Card>
+
+      {totalTeachers > 0 ? (
+        <nav
+          aria-label={tp("navigation")}
+          className="flex flex-wrap items-center justify-center gap-4"
+        >
+          {page > 1 ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page - 1)}>{tp("previous")}</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled>
+              {tp("previous")}
+            </Button>
+          )}
+          <span className="text-sm text-muted-foreground">
+            {tp("page", { current: page, total: totalPages })}
+          </span>
+          {page < totalPages ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page + 1)}>{tp("next")}</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled>
+              {tp("next")}
+            </Button>
+          )}
+          <TeacherPageSizeSelect
+            value={pageSize}
+            label={tp("pageSize")}
+            options={pageSizeOptions}
+          />
+        </nav>
+      ) : null}
     </div>
   );
 }
