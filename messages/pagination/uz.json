@@ -1,0 +1,8 @@
+{
+  "pagination": {
+    "navigation": "Sahifalar navigatsiyasi",
+    "previous": "Oldingi",
+    "next": "Keyingi",
+    "page": "{current} / {total}-sahifa"
+  }
+}

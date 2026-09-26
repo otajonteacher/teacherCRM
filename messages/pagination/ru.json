@@ -1,0 +1,8 @@
+{
+  "pagination": {
+    "navigation": "Навигация по страницам",
+    "previous": "Назад",
+    "next": "Вперёд",
+    "page": "Страница {current} из {total}"
+  }
+}
