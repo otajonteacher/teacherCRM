@@ -3,6 +3,8 @@
     "navigation": "Навигация по страницам",
     "previous": "Назад",
     "next": "Вперёд",
-    "page": "Страница {current} из {total}"
+    "page": "Страница {current} из {total}",
+    "pageSize": "Учеников на странице",
+    "items": "{count}"
   }
 }

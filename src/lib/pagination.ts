@@ -1,4 +1,13 @@
-export const STUDENTS_PAGE_SIZE = 50;
+export const STUDENT_PAGE_SIZES = [20, 30, 40, 50] as const;
+export type StudentPageSize = (typeof STUDENT_PAGE_SIZES)[number];
+export const DEFAULT_STUDENT_PAGE_SIZE: StudentPageSize = 20;
+
+export function parsePageSize(value: string | undefined): StudentPageSize {
+  const parsed = Number(value);
+  return STUDENT_PAGE_SIZES.includes(parsed as StudentPageSize)
+    ? (parsed as StudentPageSize)
+    : DEFAULT_STUDENT_PAGE_SIZE;
+}
 
 export function parsePositivePage(value: string | undefined): number {
   const parsed = Number(value);

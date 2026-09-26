@@ -2,14 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampPage,
+  DEFAULT_STUDENT_PAGE_SIZE,
   pageCount,
+  parsePageSize,
   parsePositivePage,
-  STUDENTS_PAGE_SIZE,
+  STUDENT_PAGE_SIZES,
 } from "@/lib/pagination";
 
 describe("pagination helpers", () => {
-  it("uses a bounded page size for the students list", () => {
-    expect(STUDENTS_PAGE_SIZE).toBe(50);
+  it("allows only the approved students page sizes", () => {
+    expect(STUDENT_PAGE_SIZES).toEqual([20, 30, 40, 50]);
+    expect(DEFAULT_STUDENT_PAGE_SIZE).toBe(20);
+    expect(parsePageSize("20")).toBe(20);
+    expect(parsePageSize("30")).toBe(30);
+    expect(parsePageSize("40")).toBe(40);
+    expect(parsePageSize("50")).toBe(50);
+    expect(parsePageSize("25")).toBe(DEFAULT_STUDENT_PAGE_SIZE);
+    expect(parsePageSize("1000")).toBe(DEFAULT_STUDENT_PAGE_SIZE);
   });
 
   it("parses only positive safe integer pages", () => {

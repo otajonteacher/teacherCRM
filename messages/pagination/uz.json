@@ -3,6 +3,8 @@
     "navigation": "Sahifalar navigatsiyasi",
     "previous": "Oldingi",
     "next": "Keyingi",
-    "page": "{current} / {total}-sahifa"
+    "page": "{current} / {total}-sahifa",
+    "pageSize": "Bir sahifadagi o'quvchilar soni",
+    "items": "{count} ta"
   }
 }

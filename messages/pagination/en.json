@@ -3,6 +3,8 @@
     "navigation": "Page navigation",
     "previous": "Previous",
     "next": "Next",
-    "page": "Page {current} of {total}"
+    "page": "Page {current} of {total}",
+    "pageSize": "Students per page",
+    "items": "{count}"
   }
 }
