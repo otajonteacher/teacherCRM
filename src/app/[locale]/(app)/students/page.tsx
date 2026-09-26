@@ -15,9 +15,11 @@ import {
 } from "@/components/ui/card";
 import {
   clampPage,
+  DEFAULT_STUDENT_PAGE_SIZE,
   pageCount,
+  parsePageSize,
   parsePositivePage,
-  STUDENTS_PAGE_SIZE,
+  STUDENT_PAGE_SIZES,
 } from "@/lib/pagination";
 
 const STATUSES: StudentStatus[] = ["ACTIVE", "GRADUATED", "LEFT"];
@@ -30,6 +32,7 @@ export default async function StudentsPage({
     status?: string;
     classId?: string;
     page?: string;
+    pageSize?: string;
   };
 }) {
   const user = await requireRole("ADMIN", "TEACHER", "ACCOUNTANT", "PARENT");
@@ -46,6 +49,7 @@ export default async function StudentsPage({
       ? (searchParams.status as StudentStatus)
       : undefined;
   const classId = searchParams.classId?.trim() || undefined;
+  const pageSize = parsePageSize(searchParams.pageSize);
 
   const studentWhere = {
     AND: [
@@ -72,7 +76,7 @@ export default async function StudentsPage({
     db.student.count({ where: studentWhere }),
   ]);
 
-  const totalPages = pageCount(totalStudents, STUDENTS_PAGE_SIZE);
+  const totalPages = pageCount(totalStudents, pageSize);
   const page = clampPage(parsePositivePage(searchParams.page), totalPages);
 
   const students = await db.student.findMany({
@@ -86,8 +90,8 @@ export default async function StudentsPage({
       guardian: { select: { fullName: true } },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    skip: (page - 1) * STUDENTS_PAGE_SIZE,
-    take: STUDENTS_PAGE_SIZE,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
 
   const pageHref = (targetPage: number) => {
@@ -96,6 +100,7 @@ export default async function StudentsPage({
     if (status) params.set("status", status);
     if (classId) params.set("classId", classId);
     params.set("page", String(targetPage));
+    params.set("pageSize", String(pageSize));
     return `/students?${params.toString()}`;
   };
 
@@ -124,7 +129,7 @@ export default async function StudentsPage({
           <CardDescription>{t("filtersHint")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 sm:grid-cols-4" method="get">
+          <form className="grid gap-3 sm:grid-cols-5" method="get">
             <Input name="q" defaultValue={q} placeholder={t("searchPlaceholder")} />
             <select
               name="status"
@@ -145,6 +150,18 @@ export default async function StudentsPage({
               {classes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
+                </option>
+              ))}
+            </select>
+            <select
+              name="pageSize"
+              defaultValue={String(pageSize)}
+              aria-label={tp("pageSize")}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {STUDENT_PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {tp("items", { count: size })}
                 </option>
               ))}
             </select>
