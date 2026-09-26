@@ -24,7 +24,7 @@ export default async function AppLayout({
     <AppShell
       role={role}
       appName={t("appName")}
-      userName={name}
+      userName={name ?? ""}
       roleLabel={tr(role)}
       mobileNav={<MobileNav role={role} />}
       languageSwitcher={<LanguageSwitcher />}
