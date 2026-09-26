@@ -17,49 +17,16 @@ interface SidebarProps {
   onNavigate?: () => void;
 }
 
-/** Havola va qulflangan qator uchun umumiy o'lcham — ikkisi bir tekis turadi. */
 const ROW_CLASS =
-  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium";
+  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium";
 
-/**
- * QULFLANGAN MENYU QATORI (H4f)
- * =============================
- *
- * Sahifasi hali yaratilmagan bo'lim ko'rinib turadi, lekin BOSILMAYDI.
- *
- * NEGA `<Link>` EMAS, `<span>`:
- * `<Link>` ni "o'chirish" ishonchsiz — `onClick` da `preventDefault()`
- * qilinsa ham havolaning o'zi qoladi: o'rta tugma bilan yangi oynada
- * ochish, "havolani nusxalash", klaviatura bilan Enter va qidiruv
- * botlarining o'tishi ishlayveradi. Natijada foydalanuvchi baribir 404
- * sahifaga tushardi.
- *
- * `<span>` da `href` UMUMAN yo'q — ya'ni bosishning hech qanday yo'li
- * qolmaydi. Egasining talabi aynan shu: "ko'rinib tursin, lekin bossa
- * ishlamasin, havolasi yopiq tursin".
- *
- * KO'RISH IMKONIYATI (a11y):
- *   - `aria-disabled="true"` — ekran o'quvchisi "o'chirilgan" deb aytadi;
- *   - fokusga tushmaydi (`<span>` da `tabIndex` yo'q), ya'ni Tab bilan
- *     yurganda ishlamaydigan element ushlab qolmaydi;
- *   - qulf ikonkasi `aria-hidden` — ma'no `aria-disabled` da, ikonka esa
- *     faqat ko'rish uchun;
- *   - `title` ham qo'yilmadi: hozir menyu nomidan boshqa aytadigan matn
- *     yo'q, tarjima kaliti esa `messages/*.json` ga yangi qator qo'shishni
- *     talab qilardi. Sahifa nima uchun yopiqligini tushuntiruvchi matn
- *     kerak bo'lsa, uchta tilga kalit qo'shib keyin qilinadi.
- *
- * MUHIM: bu ko'rinish qatlami, HIMOYA EMAS. Foydalanuvchi manzilni qo'lda
- * yozsa ham himoya `middleware.ts` + `rbac.ts` va server qorovullarida
- * turadi — shu yerda emas.
- */
 function LockedNavRow({ label }: { label: string }) {
   return (
     <span
       aria-disabled="true"
       className={cn(
         ROW_CLASS,
-        "cursor-not-allowed text-muted-foreground/60 select-none"
+        "cursor-not-allowed select-none text-slate-400"
       )}
     >
       <span className="flex flex-1 items-center gap-3">{label}</span>
@@ -83,11 +50,11 @@ function NavGroup({
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between rounded-md bg-primary px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-primary-foreground"
+        className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-slate-950 to-slate-800 px-3.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-white shadow-sm shadow-slate-200 transition-colors hover:from-violet-700 hover:to-indigo-700"
         aria-expanded={open}
       >
         <span>{t(`groups.${groupKey}`)}</span>
@@ -109,14 +76,8 @@ function NavGroup({
             {items.map((navItem) => {
               const { key, href, icon: Icon } = navItem;
 
-              // Sahifasi yo'q bo'lim: ko'rinadi, lekin havola emas.
               if (!isNavItemEnabled(navItem)) {
-                return (
-                  <LockedNavRow
-                    key={key}
-                    label={t(key)}
-                  />
-                );
+                return <LockedNavRow key={key} label={t(key)} />;
               }
 
               const active =
@@ -128,14 +89,19 @@ function NavGroup({
                   onClick={onNavigate}
                   className={cn(
                     ROW_CLASS,
-                    "transition-colors",
+                    "transition-all duration-200",
                     active
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-violet-50 text-violet-700 shadow-sm ring-1 ring-inset ring-violet-100"
+                      : "text-slate-600 hover:bg-violet-50/80 hover:text-violet-700"
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span>{t(key)}</span>
+                  <Icon
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0",
+                      active ? "text-violet-600" : "text-slate-400"
+                    )}
+                  />
+                  <span className="truncate">{t(key)}</span>
                 </Link>
               );
             })}
@@ -151,7 +117,7 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
   const groups = navGroupsByRole[role];
 
   return (
-    <nav className="flex flex-col gap-3">
+    <nav className="flex flex-col gap-4">
       {groups.map(({ groupKey, items }) => (
         <NavGroup
           key={groupKey}

@@ -34,9 +34,7 @@ export function AppShell({
       <aside
         className={cn(
           "flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white/95 shadow-[4px_0_24px_rgba(15,23,42,0.04)] backdrop-blur transition-[width,opacity] duration-300 ease-out",
-          sidebarOpen
-            ? "w-72 opacity-100"
-            : "w-0 border-r-0 opacity-0"
+          sidebarOpen ? "w-72 opacity-100" : "w-0 border-r-0 opacity-0"
         )}
         aria-hidden={!sidebarOpen}
       >
