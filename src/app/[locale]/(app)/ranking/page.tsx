@@ -110,7 +110,6 @@ type RankingRow = {
   id: string;
   fullName: string;
   className: string;
-  // Fan bo'yicha o'rtacha: kalit — fan id si, qiymat — o'rtacha yoki null.
   subjectAverages: Map<string, number | null>;
   gradeAverage: number | null;
   gradeCount: number;
@@ -133,33 +132,32 @@ export default async function RankingPage({
     topN?: string;
   };
 }) {
-  // Buxgalter reytingga kirmaydi — unga o'quvchining bahosi kerak emas.
   const user = await requireRole("ADMIN", "TEACHER", "PARENT");
   const t = await getTranslations("ranking");
 
   const isAdmin = user.role === "ADMIN";
   const isParent = user.role === "PARENT";
 
-  // Koeffitsientlar bazadan. Qator hali yaratilmagan bo'lsa — standart
-  // qiymatlar bilan ishlaymiz, sahifa xato bermasligi kerak.
-  const stored = await db.rankingSetting.findUnique({
-    where: { id: RANKING_SETTING_ID },
-    select: { gradeWeight: true, testWeight: true, penaltyFactor: true },
-  });
-  const settings: RankingSettings = stored ?? DEFAULT_RANKING_SETTINGS;
-
-  const years = await db.academicYear.findMany({
-    orderBy: { name: "desc" },
-    select: {
-      id: true,
-      name: true,
-      isCurrent: true,
-      quarters: {
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, startDate: true, endDate: true },
+  // Bu ikki so'rov bir-biriga bog'liq emas — bazaga parallel yuboriladi.
+  const [stored, years] = await Promise.all([
+    db.rankingSetting.findUnique({
+      where: { id: RANKING_SETTING_ID },
+      select: { gradeWeight: true, testWeight: true, penaltyFactor: true },
+    }),
+    db.academicYear.findMany({
+      orderBy: { name: "desc" },
+      select: {
+        id: true,
+        name: true,
+        isCurrent: true,
+        quarters: {
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, startDate: true, endDate: true },
+        },
       },
-    },
-  });
+    }),
+  ]);
+  const settings: RankingSettings = stored ?? DEFAULT_RANKING_SETTINGS;
 
   const selectedYear =
     years.find((year) => year.id === searchParams.year?.trim()) ??
@@ -175,7 +173,6 @@ export default async function RankingPage({
     ) ??
     quarters[quarters.length - 1];
 
-  // Qamrov: searchParams ishonchsiz, shuning uchun tekshiriladi.
   const scope = isRankingScope(searchParams.scope)
     ? searchParams.scope
     : "class";
@@ -202,11 +199,6 @@ export default async function RankingPage({
     (klass) => klass.id === searchParams.classId?.trim()
   );
 
-  /**
-   * Qamrovga kiruvchi sinflar. "Sinf ichida" holatida sinf tanlanmaguncha
-   * hech narsa hisoblanmaydi — hisobot sahifalarida bu majburiy qoida
-   * (yulduzcha + brauzer ogohlantirishi).
-   */
   const cohortClasses =
     scope === "class"
       ? selectedClass
@@ -236,85 +228,75 @@ export default async function RankingPage({
 
   const studentIds = students.map((student) => student.id);
 
-  // Ota-ona uchun: qaysi qator ko'rsatiladi. Boshqa qatorlar hisobga olinadi,
-  // lekin ekranga chiqmaydi.
-  const visibleIds =
-    isParent && studentIds.length > 0
-      ? new Set(
-          (
-            await db.student.findMany({
-              where: { AND: [studentScope(user), { id: { in: studentIds } }] },
+  // Bu oltita o'qish bir-biriga bog'liq emas. Scope va ID filtrlari aynan
+  // avvalgidek qoladi; faqat tarmoq kutishlari bir vaqtda bajariladi.
+  const [visibleIds, quarterGrades, attendanceRows, penaltyRows, testRows, yearGrades] =
+    await Promise.all([
+      isParent && studentIds.length > 0
+        ? db.student
+            .findMany({
+              where: {
+                AND: [studentScope(user), { id: { in: studentIds } }],
+              },
               select: { id: true },
             })
-          ).map((student) => student.id)
-        )
-      : null;
-
-  const quarterGrades =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.grade.findMany({
-          where: {
-            studentId: { in: studentIds },
-            quarterId: selectedQuarter.id,
-          },
-          select: { studentId: true, subjectId: true, value: true },
-        })
-      : [];
-
-  const attendanceRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.attendance.findMany({
-          where: {
-            studentId: { in: studentIds },
-            date: {
-              gte: selectedQuarter.startDate,
-              lte: selectedQuarter.endDate,
+            .then((parentStudents) => new Set(parentStudents.map((student) => student.id)))
+        : Promise.resolve<Set<string> | null>(null),
+      ready && studentIds.length > 0 && selectedQuarter
+        ? db.grade.findMany({
+            where: {
+              studentId: { in: studentIds },
+              quarterId: selectedQuarter.id,
             },
-          },
-          select: { studentId: true, status: true },
-        })
-      : [];
-
-  const penaltyRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.penalty.findMany({
-          where: {
-            studentId: { in: studentIds },
-            date: {
-              gte: selectedQuarter.startDate,
-              lte: selectedQuarter.endDate,
+            select: { studentId: true, subjectId: true, value: true },
+          })
+        : Promise.resolve([]),
+      ready && studentIds.length > 0 && selectedQuarter
+        ? db.attendance.findMany({
+            where: {
+              studentId: { in: studentIds },
+              date: {
+                gte: selectedQuarter.startDate,
+                lte: selectedQuarter.endDate,
+              },
             },
-          },
-          select: { studentId: true, points: true },
-        })
-      : [];
-
-  // Testlar moduli hali yo'q — jadval bo'sh bo'lishi normal holat.
-  const testRows =
-    ready && studentIds.length > 0 && selectedQuarter
-      ? await db.testResult.findMany({
-          where: {
-            studentId: { in: studentIds },
-            takenAt: {
-              gte: selectedQuarter.startDate,
-              lte: selectedQuarter.endDate,
+            select: { studentId: true, status: true },
+          })
+        : Promise.resolve([]),
+      ready && studentIds.length > 0 && selectedQuarter
+        ? db.penalty.findMany({
+            where: {
+              studentId: { in: studentIds },
+              date: {
+                gte: selectedQuarter.startDate,
+                lte: selectedQuarter.endDate,
+              },
             },
-          },
-          select: { studentId: true, percent: true },
-        })
-      : [];
-
-  // Yil bo'yicha diagramma uchun butun yilning baholari.
-  const yearGrades =
-    ready && studentIds.length > 0 && quarters.length > 0
-      ? await db.grade.findMany({
-          where: {
-            studentId: { in: studentIds },
-            quarterId: { in: quarters.map((quarter) => quarter.id) },
-          },
-          select: { subjectId: true, quarterId: true, value: true },
-        })
-      : [];
+            select: { studentId: true, points: true },
+          })
+        : Promise.resolve([]),
+      ready && studentIds.length > 0 && selectedQuarter
+        ? db.testResult.findMany({
+            where: {
+              studentId: { in: studentIds },
+              takenAt: {
+                gte: selectedQuarter.startDate,
+                lte: selectedQuarter.endDate,
+              },
+            },
+            select: { studentId: true, percent: true },
+          })
+        : Promise.resolve([]),
+      ready && studentIds.length > 0 && quarters.length > 0
+        ? db.grade.findMany({
+            where: {
+              studentId: { in: studentIds },
+              quarterId: { in: quarters.map((quarter) => quarter.id) },
+            },
+            select: { subjectId: true, quarterId: true, value: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
   const subjectIds = Array.from(
     new Set([
@@ -355,12 +337,6 @@ export default async function RankingPage({
     gradesBySubject.set(grade.subjectId, subjectAll);
   }
 
-  /**
-   * Jadvalda ustun oladigan fanlar: faqat SHU CHORAKDA bahosi bor fanlar.
-   * `subjects` ro'yxati yil bo'yicha diagramma uchun ham ishlatiladi,
-   * shuning uchun u kengroq bo'lishi mumkin — jadvalga esa bo'sh ustun
-   * kerak emas.
-   */
   const tableSubjects = subjects.filter((subject) =>
     gradesBySubject.has(subject.id)
   );
@@ -399,9 +375,6 @@ export default async function RankingPage({
     const penaltyPoints = penaltyByStudent.get(student.id) ?? 0;
     const testAverage = averageOf(testsByStudent.get(student.id) ?? []);
 
-    // Har bir fan uchun alohida o'rtacha. Baho bo'lmasa — null, ya'ni
-    // jadvalda chiziqcha. Nolga aylantirilmaydi: baho qo'yilmagani va
-    // nol olgani mutlaqo boshqa narsa.
     const subjectAverages = new Map<string, number | null>();
     for (const subject of tableSubjects) {
       subjectAverages.set(
@@ -416,9 +389,7 @@ export default async function RankingPage({
       className: student.class?.name ?? "—",
       subjectAverages,
       gradeAverage,
-      // Umumiy baholar soni — fanlar kesimida emas, hammasi birgalikda.
       gradeCount: values.length,
-      // Davomat foizi mavjud hisobot bilan bir xil formuladan olinadi.
       attendance: counts ? attendancePercent(counts) : null,
       penaltyPoints,
       testAverage,
@@ -430,8 +401,6 @@ export default async function RankingPage({
     };
   });
 
-  // O'rin BUTUN qamrov bo'yicha hisoblanadi (ota-ona ko'rmaydigan qatorlar
-  // ham hisobda — aks holda o'rin yolg'on bo'lardi).
   const rankMap = rankByScore(
     rows.map((row) => ({ id: row.id, score: row.score }))
   );
@@ -458,11 +427,6 @@ export default async function RankingPage({
     ? rankedRows.filter((row) => visibleIds.has(row.id))
     : rankedRows;
 
-  // ----------------------------------------------------------------
-  // Diagrammalar uchun ma'lumot
-  // ----------------------------------------------------------------
-
-  // 1) Har bir fan bo'yicha alohida diagramma.
   const subjectCharts = subjects
     .map((subject, index) => {
       const bars = rows
@@ -482,7 +446,6 @@ export default async function RankingPage({
     })
     .filter((chart) => chart.bars.length > 0);
 
-  // 2) Umumiy reyting — dastlabki uchtasi to'qroq rangda.
   const overallBars = sortedRows
     .filter((row) => row.score !== null)
     .slice(0, chartLimit)
@@ -492,7 +455,6 @@ export default async function RankingPage({
       color: index < 3 ? "#1d4ed8" : "#93c5fd",
     }));
 
-  // 3) Tanlangan chorak: fanlar kesimida qamrov o'rtachasi.
   const quarterBars = subjects
     .map((subject, index) => ({
       label: subject.nameUz,
@@ -501,7 +463,6 @@ export default async function RankingPage({
     }))
     .filter((bar) => bar.value >= 0);
 
-  // 4) Yil bo'yicha, choraklar kesimida.
   const yearBuckets = new Map<string, number[]>();
   for (const grade of yearGrades) {
     const key = `${grade.subjectId}|${grade.quarterId}`;
@@ -531,7 +492,6 @@ export default async function RankingPage({
   }));
 
   const hasGrades = quarterGrades.length > 0;
-
   const medalLabels = [t("medalGold"), t("medalSilver"), t("medalBronze")];
 
   return (
@@ -562,48 +522,22 @@ export default async function RankingPage({
           ) : (
             <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" method="get">
               <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("yearLabel")}
-                </label>
-                <select
-                  name="year"
-                  defaultValue={selectedYear?.id ?? ""}
-                  className={selectClassName}
-                >
-                  {years.map((year) => (
-                    <option key={year.id} value={year.id}>
-                      {year.name}
-                    </option>
-                  ))}
+                <label className="mb-1 block text-sm font-medium">{t("yearLabel")}</label>
+                <select name="year" defaultValue={selectedYear?.id ?? ""} className={selectClassName}>
+                  {years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("quarterLabel")}
-                </label>
-                <select
-                  name="quarter"
-                  defaultValue={selectedQuarter?.id ?? ""}
-                  className={selectClassName}
-                >
-                  {quarters.map((quarter) => (
-                    <option key={quarter.id} value={quarter.id}>
-                      {t("quarterName", { name: quarter.name })}
-                    </option>
-                  ))}
+                <label className="mb-1 block text-sm font-medium">{t("quarterLabel")}</label>
+                <select name="quarter" defaultValue={selectedQuarter?.id ?? ""} className={selectClassName}>
+                  {quarters.map((quarter) => <option key={quarter.id} value={quarter.id}>{t("quarterName", { name: quarter.name })}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("scopeLabel")}
-                </label>
-                <select
-                  name="scope"
-                  defaultValue={scope}
-                  className={selectClassName}
-                >
+                <label className="mb-1 block text-sm font-medium">{t("scopeLabel")}</label>
+                <select name="scope" defaultValue={scope} className={selectClassName}>
                   <option value="class">{t("scopeClass")}</option>
                   <option value="parallel">{t("scopeParallel")}</option>
                   <option value="school">{t("scopeSchool")}</option>
@@ -614,79 +548,40 @@ export default async function RankingPage({
                 <div>
                   <label className="mb-1 block text-sm font-medium">
                     <span>{t("parallelLabel")}</span>{" "}
-                    <span
-                      aria-hidden="true"
-                      className="font-semibold text-destructive"
-                    >
-                      *
-                    </span>
+                    <span aria-hidden="true" className="font-semibold text-destructive">*</span>
                   </label>
                   <select
                     name="grade"
-                    defaultValue={
-                      selectedGrade === undefined ? "" : String(selectedGrade)
-                    }
+                    defaultValue={selectedGrade === undefined ? "" : String(selectedGrade)}
                     className={selectClassName}
                     required
                     aria-required="true"
                   >
                     <option value="">{t("chooseParallel")}</option>
-                    {gradeLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {t("parallelName", { grade: level })}
-                      </option>
-                    ))}
+                    {gradeLevels.map((level) => <option key={level} value={level}>{t("parallelName", { grade: level })}</option>)}
                   </select>
                 </div>
               ) : scope === "class" ? (
                 <div>
                   <label className="mb-1 block text-sm font-medium">
                     <span>{t("classLabel")}</span>{" "}
-                    <span
-                      aria-hidden="true"
-                      className="font-semibold text-destructive"
-                    >
-                      *
-                    </span>
+                    <span aria-hidden="true" className="font-semibold text-destructive">*</span>
                   </label>
-                  <select
-                    name="classId"
-                    defaultValue={selectedClass?.id ?? ""}
-                    className={selectClassName}
-                    required
-                    aria-required="true"
-                  >
+                  <select name="classId" defaultValue={selectedClass?.id ?? ""} className={selectClassName} required aria-required="true">
                     <option value="">{t("chooseClass")}</option>
-                    {classes.map((klass) => (
-                      <option key={klass.id} value={klass.id}>
-                        {klass.name}
-                      </option>
-                    ))}
+                    {classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}
                   </select>
                 </div>
               ) : null}
 
               <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {t("topN")}
-                </label>
-                <input
-                  type="number"
-                  name="topN"
-                  min={1}
-                  max={500}
-                  defaultValue={topN ?? ""}
-                  className={selectClassName}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("topNHint")}
-                </p>
+                <label className="mb-1 block text-sm font-medium">{t("topN")}</label>
+                <input type="number" name="topN" min={1} max={500} defaultValue={topN ?? ""} className={selectClassName} />
+                <p className="mt-1 text-xs text-muted-foreground">{t("topNHint")}</p>
               </div>
 
               <div className="flex items-end">
-                <Button type="submit" variant="secondary" className="w-full">
-                  {t("apply")}
-                </Button>
+                <Button type="submit" variant="secondary" className="w-full">{t("apply")}</Button>
               </div>
             </form>
           )}
@@ -694,259 +589,97 @@ export default async function RankingPage({
       </Card>
 
       {years.length === 0 ? null : quarters.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">{t("needQuarter")}</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">{t("needQuarter")}</p></CardContent></Card>
       ) : !ready ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              {scope === "parallel" ? t("needParallel") : t("needClass")}
-            </p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">{scope === "parallel" ? t("needParallel") : t("needClass")}</p></CardContent></Card>
       ) : students.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">{t("noStudents")}</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">{t("noStudents")}</p></CardContent></Card>
       ) : (
         <>
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">{t("tableTitle")}</CardTitle>
-              <CardDescription>
-                {t("tableHint")} · {t("medalHint")} ·{" "}
-                {t("studentCount", { count: rows.length })}
-              </CardDescription>
+              <CardDescription>{t("tableHint")} · {t("medalHint")} · {t("studentCount", { count: rows.length })}</CardDescription>
             </CardHeader>
             <CardContent>
               {!hasGrades ? (
                 <p className="text-sm text-muted-foreground">{t("noData")}</p>
               ) : (
                 <>
-                  {/* Faqat gorizontal aylantirish: ichki vertikal skroll
-                      ataylab yo'q — jadval to'liq ko'rinishi kerak. */}
                   <div className="overflow-x-auto">
-                    {/* `min-w-full`: jadval o'z mazmuniga qarab kengayadi,
-                        shuning uchun ism-familya ustuni eng uzun ismga
-                        qarab o'lchanadi va siqilib qolmaydi. */}
                     <table className="min-w-full border-collapse text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          {/* `w-px` + `whitespace-nowrap`: ustun aynan eng
-                              uzun ism kengligini oladi, ortiqcha bo'sh joy
-                              qoldirmaydi. */}
-                          <th className="sticky left-0 z-10 w-px whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium">
-                            {t("student")}
-                          </th>
-                          <th className="w-14 border-l px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader className="h-16">
-                              {t("className")}
-                            </VerticalHeader>
-                          </th>
+                          <th className="sticky left-0 z-10 w-px whitespace-nowrap bg-muted/50 px-3 py-2 align-bottom text-left font-medium">{t("student")}</th>
+                          <th className="w-14 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader className="h-16">{t("className")}</VerticalHeader></th>
                           {tableSubjects.map((subject) => (
-                            <th
-                              key={subject.id}
-                              className="w-16 border-l px-1 py-2 align-bottom font-medium"
-                            >
-                              <VerticalHeader>
-                                {t("subjectAverageHeader", {
-                                  subject: subject.nameUz,
-                                })}
-                              </VerticalHeader>
-                            </th>
+                            <th key={subject.id} className="w-16 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("subjectAverageHeader", { subject: subject.nameUz })}</VerticalHeader></th>
                           ))}
-                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>{t("gradeAverage")}</VerticalHeader>
-                          </th>
-                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>{t("gradeCount")}</VerticalHeader>
-                          </th>
-                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>
-                              {t("attendancePercent")}
-                            </VerticalHeader>
-                          </th>
-                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>
-                              {t("penaltyPoints")}
-                            </VerticalHeader>
-                          </th>
-                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>{t("testAverage")}</VerticalHeader>
-                          </th>
-                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader>{t("finalScore")}</VerticalHeader>
-                          </th>
-                          {/* O'rin ustuni eng oxirida. */}
-                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium">
-                            <VerticalHeader className="h-16">
-                              {t("rankColumn")}
-                            </VerticalHeader>
-                          </th>
+                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("gradeAverage")}</VerticalHeader></th>
+                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("gradeCount")}</VerticalHeader></th>
+                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("attendancePercent")}</VerticalHeader></th>
+                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("penaltyPoints")}</VerticalHeader></th>
+                          <th className="w-16 border-l px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("testAverage")}</VerticalHeader></th>
+                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium"><VerticalHeader>{t("finalScore")}</VerticalHeader></th>
+                          <th className="w-16 border-l bg-amber-50 px-1 py-2 align-bottom font-medium"><VerticalHeader className="h-16">{t("rankColumn")}</VerticalHeader></th>
                         </tr>
                       </thead>
                       <tbody>
                         {tableRows.map((row) => (
                           <tr key={row.id} className="border-b">
-                            <td className="sticky left-0 z-10 w-px whitespace-nowrap bg-background px-3 py-1.5">
-                              {row.fullName}
-                            </td>
-                            <td className="border-l px-2 py-1.5 text-center text-muted-foreground">
-                              {row.className}
-                            </td>
+                            <td className="sticky left-0 z-10 w-px whitespace-nowrap bg-background px-3 py-1.5">{row.fullName}</td>
+                            <td className="border-l px-2 py-1.5 text-center text-muted-foreground">{row.className}</td>
                             {tableSubjects.map((subject) => (
-                              <td
-                                key={subject.id}
-                                className="border-l px-2 py-1.5 text-center"
-                              >
-                                {row.subjectAverages.get(subject.id) ?? "—"}
-                              </td>
+                              <td key={subject.id} className="border-l px-2 py-1.5 text-center">{row.subjectAverages.get(subject.id) ?? "—"}</td>
                             ))}
-                            <td className="border-l bg-amber-50 px-2 py-1.5 text-center font-medium">
-                              {row.gradeAverage ?? "—"}
-                            </td>
-                            <td className="border-l px-2 py-1.5 text-center text-muted-foreground">
-                              {row.gradeCount}
-                            </td>
-                            <td className="border-l px-2 py-1.5 text-center">
-                              {row.attendance ?? "—"}
-                            </td>
-                            <td className="border-l px-2 py-1.5 text-center">
-                              {row.penaltyPoints > 0
-                                ? row.penaltyPoints
-                                : "—"}
-                            </td>
-                            <td className="border-l px-2 py-1.5 text-center">
-                              {row.testAverage ?? "—"}
-                            </td>
-                            <td className="border-l bg-amber-100/70 px-2 py-1.5 text-center font-semibold">
-                              {row.score ?? "—"}
-                            </td>
-                            <td className="border-l bg-amber-100/70 px-2 py-1.5">
-                              <div className="flex items-center justify-center gap-1 font-semibold">
-                                {row.rank !== null && row.rank <= 3 ? (
-                                  <RankMedal
-                                    rank={row.rank}
-                                    label={medalLabels[row.rank - 1]}
-                                  />
-                                ) : null}
-                                <span>{row.rank ?? "—"}</span>
-                              </div>
-                            </td>
+                            <td className="border-l bg-amber-50 px-2 py-1.5 text-center font-medium">{row.gradeAverage ?? "—"}</td>
+                            <td className="border-l px-2 py-1.5 text-center text-muted-foreground">{row.gradeCount}</td>
+                            <td className="border-l px-2 py-1.5 text-center">{row.attendance ?? "—"}</td>
+                            <td className="border-l px-2 py-1.5 text-center">{row.penaltyPoints > 0 ? row.penaltyPoints : "—"}</td>
+                            <td className="border-l px-2 py-1.5 text-center">{row.testAverage ?? "—"}</td>
+                            <td className="border-l bg-amber-100/70 px-2 py-1.5 text-center font-semibold">{row.score ?? "—"}</td>
+                            <td className="border-l bg-amber-100/70 px-2 py-1.5"><div className="flex items-center justify-center gap-1 font-semibold">{row.rank !== null && row.rank <= 3 ? <RankMedal rank={row.rank} label={medalLabels[row.rank - 1]} /> : null}<span>{row.rank ?? "—"}</span></div></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {t("testMissingHint")}
-                  </p>
+                  <p className="mt-3 text-xs text-muted-foreground">{t("testMissingHint")}</p>
                 </>
               )}
             </CardContent>
           </Card>
 
-          {/* Diagrammalar. Ota-onaga o'quvchi ismli diagrammalar
-              ko'rsatilmaydi — unga faqat o'rtacha ko'rsatkichlar. */}
           {!isParent ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("chartOverall")}</CardTitle>
-                <CardDescription>
-                  {t("chartOverallHint")} ·{" "}
-                  {t("chartLimitHint", { count: chartLimit })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {overallBars.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t("noChartData")}
-                  </p>
-                ) : (
-                  <BarChart bars={overallBars} />
-                )}
-              </CardContent>
+              <CardHeader><CardTitle className="text-lg">{t("chartOverall")}</CardTitle><CardDescription>{t("chartOverallHint")} · {t("chartLimitHint", { count: chartLimit })}</CardDescription></CardHeader>
+              <CardContent>{overallBars.length === 0 ? <p className="text-sm text-muted-foreground">{t("noChartData")}</p> : <BarChart bars={overallBars} />}</CardContent>
             </Card>
           ) : null}
 
           {!isParent ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("chartSubjects")}</CardTitle>
-                <CardDescription>{t("chartSubjectsHint")}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {subjectCharts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t("noChartData")}
-                  </p>
-                ) : (
-                  subjectCharts.map((chart) => (
-                    <div key={chart.id} className="space-y-2">
-                      <h3 className="text-sm font-semibold">{chart.name}</h3>
-                      <BarChart bars={chart.bars} />
-                    </div>
-                  ))
-                )}
-              </CardContent>
+              <CardHeader><CardTitle className="text-lg">{t("chartSubjects")}</CardTitle><CardDescription>{t("chartSubjectsHint")}</CardDescription></CardHeader>
+              <CardContent className="space-y-6">{subjectCharts.length === 0 ? <p className="text-sm text-muted-foreground">{t("noChartData")}</p> : subjectCharts.map((chart) => <div key={chart.id} className="space-y-2"><h3 className="text-sm font-semibold">{chart.name}</h3><BarChart bars={chart.bars} /></div>)}</CardContent>
             </Card>
           ) : null}
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{t("chartQuarter")}</CardTitle>
-              <CardDescription>{t("chartQuarterHint")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {quarterBars.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t("noChartData")}
-                </p>
-              ) : (
-                <BarChart bars={quarterBars} />
-              )}
-            </CardContent>
+            <CardHeader><CardTitle className="text-lg">{t("chartQuarter")}</CardTitle><CardDescription>{t("chartQuarterHint")}</CardDescription></CardHeader>
+            <CardContent>{quarterBars.length === 0 ? <p className="text-sm text-muted-foreground">{t("noChartData")}</p> : <BarChart bars={quarterBars} />}</CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{t("chartYear")}</CardTitle>
-              <CardDescription>{t("chartYearHint")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {yearGroups.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t("noChartData")}
-                </p>
-              ) : (
-                <>
-                  <ChartLegend items={yearLegend} />
-                  <GroupedBarChart groups={yearGroups} />
-                </>
-              )}
-            </CardContent>
+            <CardHeader><CardTitle className="text-lg">{t("chartYear")}</CardTitle><CardDescription>{t("chartYearHint")}</CardDescription></CardHeader>
+            <CardContent className="space-y-3">{yearGroups.length === 0 ? <p className="text-sm text-muted-foreground">{t("noChartData")}</p> : <><ChartLegend items={yearLegend} /><GroupedBarChart groups={yearGroups} /></>}</CardContent>
           </Card>
         </>
       )}
 
       {isAdmin ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">{t("settingsTitle")}</CardTitle>
-            <CardDescription>{t("settingsHint")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RankingSettingsForm
-              gradeWeight={settings.gradeWeight}
-              testWeight={settings.testWeight}
-              penaltyFactor={settings.penaltyFactor}
-            />
-          </CardContent>
+          <CardHeader><CardTitle className="text-lg">{t("settingsTitle")}</CardTitle><CardDescription>{t("settingsHint")}</CardDescription></CardHeader>
+          <CardContent><RankingSettingsForm gradeWeight={settings.gradeWeight} testWeight={settings.testWeight} penaltyFactor={settings.penaltyFactor} /></CardContent>
         </Card>
       ) : (
         <p className="text-xs text-muted-foreground">{t("adminOnly")}</p>
