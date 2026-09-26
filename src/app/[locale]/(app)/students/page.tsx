@@ -13,17 +13,31 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  clampPage,
+  pageCount,
+  parsePositivePage,
+  STUDENTS_PAGE_SIZE,
+} from "@/lib/pagination";
 
 const STATUSES: StudentStatus[] = ["ACTIVE", "GRADUATED", "LEFT"];
 
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: { q?: string; status?: string; classId?: string };
+  searchParams: {
+    q?: string;
+    status?: string;
+    classId?: string;
+    page?: string;
+  };
 }) {
   const user = await requireRole("ADMIN", "TEACHER", "ACCOUNTANT", "PARENT");
-  const t = await getTranslations("students");
-  const tImport = await getTranslations("import");
+  const [t, tImport, tp] = await Promise.all([
+    getTranslations("students"),
+    getTranslations("import"),
+    getTranslations("pagination"),
+  ]);
   const canWrite = user.role === "ADMIN";
 
   const q = searchParams.q?.trim() ?? "";
@@ -33,32 +47,57 @@ export default async function StudentsPage({
       : undefined;
   const classId = searchParams.classId?.trim() || undefined;
 
-  const classes = await db.class.findMany({
-    where: classScope(user),
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const studentWhere = {
+    AND: [
+      studentScope(user),
+      q
+        ? {
+            OR: [
+              { firstName: { contains: q, mode: "insensitive" as const } },
+              { lastName: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {},
+      status ? { status } : {},
+      classId ? { classId } : {},
+    ],
+  };
+
+  const [classes, totalStudents] = await Promise.all([
+    db.class.findMany({
+      where: classScope(user),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    db.student.count({ where: studentWhere }),
+  ]);
+
+  const totalPages = pageCount(totalStudents, STUDENTS_PAGE_SIZE);
+  const page = clampPage(parsePositivePage(searchParams.page), totalPages);
 
   const students = await db.student.findMany({
-    where: {
-      AND: [
-        studentScope(user),
-        q
-          ? {
-              OR: [
-                { firstName: { contains: q, mode: "insensitive" } },
-                { lastName: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {},
-        status ? { status } : {},
-        classId ? { classId } : {},
-      ],
+    where: studentWhere,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      status: true,
+      class: { select: { name: true } },
+      guardian: { select: { fullName: true } },
     },
-    include: { class: true, guardian: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    take: 100,
+    skip: (page - 1) * STUDENTS_PAGE_SIZE,
+    take: STUDENTS_PAGE_SIZE,
   });
+
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    if (classId) params.set("classId", classId);
+    params.set("page", String(targetPage));
+    return `/students?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -164,6 +203,35 @@ export default async function StudentsPage({
           )}
         </CardContent>
       </Card>
+
+      {totalStudents > 0 ? (
+        <nav
+          aria-label={tp("navigation")}
+          className="flex items-center justify-center gap-4"
+        >
+          {page > 1 ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page - 1)}>{tp("previous")}</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled>
+              {tp("previous")}
+            </Button>
+          )}
+          <span className="text-sm text-muted-foreground">
+            {tp("page", { current: page, total: totalPages })}
+          </span>
+          {page < totalPages ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page + 1)}>{tp("next")}</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" disabled>
+              {tp("next")}
+            </Button>
+          )}
+        </nav>
+      ) : null}
     </div>
   );
 }
