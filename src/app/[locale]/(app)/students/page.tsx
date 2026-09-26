@@ -20,6 +20,7 @@ import {
   parsePositivePage,
   STUDENT_PAGE_SIZES,
 } from "@/lib/pagination";
+import { StudentPageSizeSelect } from "./page-size-select";
 
 const STATUSES: StudentStatus[] = ["ACTIVE", "GRADUATED", "LEFT"];
 
@@ -102,6 +103,11 @@ export default async function StudentsPage({
     params.set("pageSize", String(pageSize));
     return `/students?${params.toString()}`;
   };
+
+  const pageSizeOptions = STUDENT_PAGE_SIZES.map((size) => ({
+    value: size,
+    label: tp("items", { count: size }),
+  }));
 
   return (
     <div className="space-y-6">
@@ -234,26 +240,11 @@ export default async function StudentsPage({
               {tp("next")}
             </Button>
           )}
-          <form method="get" className="flex items-center gap-2">
-            {q ? <input type="hidden" name="q" value={q} /> : null}
-            {status ? <input type="hidden" name="status" value={status} /> : null}
-            {classId ? <input type="hidden" name="classId" value={classId} /> : null}
-            <label htmlFor="students-page-size" className="sr-only">
-              {tp("pageSize")}
-            </label>
-            <select
-              id="students-page-size"
-              name="pageSize"
-              defaultValue={String(pageSize)}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {STUDENT_PAGE_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {tp("items", { count: size })}
-                </option>
-              ))}
-            </select>
-          </form>
+          <StudentPageSizeSelect
+            value={pageSize}
+            label={tp("pageSize")}
+            options={pageSizeOptions}
+          />
         </nav>
       ) : null}
     </div>
