@@ -18,7 +18,7 @@ interface SidebarProps {
 }
 
 const ROW_CLASS =
-  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium";
+  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium";
 
 function LockedNavRow({ label }: { label: string }) {
   return (
@@ -50,17 +50,17 @@ function NavGroup({
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-slate-950 to-slate-800 px-3.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-white shadow-sm shadow-slate-200 transition-colors hover:from-violet-700 hover:to-indigo-700"
+        className="flex w-full items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-white transition-colors hover:bg-violet-700"
         aria-expanded={open}
       >
         <span>{t(`groups.${groupKey}`)}</span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 shrink-0 transition-transform duration-200",
+            "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
             !open && "-rotate-90"
           )}
         />
@@ -72,7 +72,7 @@ function NavGroup({
         )}
       >
         <div className="overflow-hidden">
-          <div className="flex flex-col gap-1 pt-1">
+          <div className="flex flex-col gap-0.5 py-0.5">
             {items.map((navItem) => {
               const { key, href, icon: Icon } = navItem;
 
@@ -89,15 +89,15 @@ function NavGroup({
                   onClick={onNavigate}
                   className={cn(
                     ROW_CLASS,
-                    "transition-all duration-200",
+                    "transition-colors duration-150",
                     active
                       ? "bg-violet-50 text-violet-700 shadow-sm ring-1 ring-inset ring-violet-100"
-                      : "text-slate-600 hover:bg-violet-50/80 hover:text-violet-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >
                   <Icon
                     className={cn(
-                      "h-[18px] w-[18px] shrink-0",
+                      "h-4 w-4 shrink-0",
                       active ? "text-violet-600" : "text-slate-400"
                     )}
                   />
@@ -117,7 +117,7 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
   const groups = navGroupsByRole[role];
 
   return (
-    <nav className="flex flex-col gap-4">
+    <nav className="flex flex-col gap-3">
       {groups.map(({ groupKey, items }) => (
         <NavGroup
           key={groupKey}
