@@ -12,7 +12,7 @@ import {
 describe("pagination helpers", () => {
   it("allows only the approved students page sizes", () => {
     expect(STUDENT_PAGE_SIZES).toEqual([20, 30, 40, 50]);
-    expect(DEFAULT_STUDENT_PAGE_SIZE).toBe(20);
+    expect(DEFAULT_STUDENT_PAGE_SIZE).toBe(30);
     expect(parsePageSize("20")).toBe(20);
     expect(parsePageSize("30")).toBe(30);
     expect(parsePageSize("40")).toBe(40);
