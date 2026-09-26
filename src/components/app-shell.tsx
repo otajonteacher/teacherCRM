@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Role } from "@prisma/client";
 import { PanelLeftClose, PanelLeftOpen, GraduationCap } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
@@ -27,7 +27,7 @@ export function AppShell({
   logoutButton,
   children,
 }: AppShellProps) {
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="flex h-full overflow-hidden bg-slate-50/70">
@@ -85,5 +85,3 @@ export function AppShell({
     </div>
   );
 }
-
-import * as React from "react";
