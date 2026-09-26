@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import {
   clampPage,
-  DEFAULT_STUDENT_PAGE_SIZE,
   pageCount,
   parsePageSize,
   parsePositivePage,
@@ -129,7 +128,7 @@ export default async function StudentsPage({
           <CardDescription>{t("filtersHint")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 sm:grid-cols-5" method="get">
+          <form className="grid gap-3 sm:grid-cols-4" method="get">
             <Input name="q" defaultValue={q} placeholder={t("searchPlaceholder")} />
             <select
               name="status"
@@ -150,18 +149,6 @@ export default async function StudentsPage({
               {classes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
-                </option>
-              ))}
-            </select>
-            <select
-              name="pageSize"
-              defaultValue={String(pageSize)}
-              aria-label={tp("pageSize")}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {STUDENT_PAGE_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {tp("items", { count: size })}
                 </option>
               ))}
             </select>
@@ -224,7 +211,7 @@ export default async function StudentsPage({
       {totalStudents > 0 ? (
         <nav
           aria-label={tp("navigation")}
-          className="flex items-center justify-center gap-4"
+          className="flex flex-wrap items-center justify-center gap-4"
         >
           {page > 1 ? (
             <Button asChild variant="outline">
@@ -247,6 +234,26 @@ export default async function StudentsPage({
               {tp("next")}
             </Button>
           )}
+          <form method="get" className="flex items-center gap-2">
+            {q ? <input type="hidden" name="q" value={q} /> : null}
+            {status ? <input type="hidden" name="status" value={status} /> : null}
+            {classId ? <input type="hidden" name="classId" value={classId} /> : null}
+            <label htmlFor="students-page-size" className="sr-only">
+              {tp("pageSize")}
+            </label>
+            <select
+              id="students-page-size"
+              name="pageSize"
+              defaultValue={String(pageSize)}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {STUDENT_PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {tp("items", { count: size })}
+                </option>
+              ))}
+            </select>
+          </form>
         </nav>
       ) : null}
     </div>
